@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "workplan"
+dynamic = ["version"]
+description = "Plan and record development work in git, for agent-driven and AI-assisted development"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Bay Information Systems" }]
+keywords = ["git", "planning", "agents", "ai", "workflow"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+
+[project.urls]
+Homepage = "https://github.com/bayinfosys/workplan"
+Specification = "https://github.com/bayinfosys/workplan/blob/master/SPEC.md"
+
+[project.scripts]
+workplan = "workplan.cli:main"
+wp = "workplan.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "workplan.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+workplan = ["templates/*/*"]
