@@ -128,14 +128,13 @@ class Routing(unittest.TestCase):
         self.repo.commit_all("edit")
         self.assertEqual(self.route(), f"produce-patch {wid}/0000")
 
-    def test_dispatch_records(self):
+    def test_dispatch(self):
         wid = planned(self.repo)
         log = Path(self.tmp.name) / "dispatched"
         self.repo.wp("route", "--dispatch",
                      env={"WORKPLAN_ROUTE_DISPATCH": f"sh -c 'echo \"$@\" > {log}' x"})
-        self.assertIn("produce-patch", self.repo.read(".git/workplan/route.log"))
         self.assertEqual(log.read_text().strip(), f"produce-patch {wid}/0000")
-
+        self.assertFalse((self.repo.path / ".git" / "workplan" / "route.log").exists())
 
 if __name__ == "__main__":
     unittest.main()

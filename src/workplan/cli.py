@@ -11,24 +11,6 @@ import sys
 from workplan import __version__, agent, config, git, ops, route
 from workplan.git import Fail
 
-USAGE = """\
-the flow:
-  workplan init                        create and commit workplans/
-  workplan plan NAME [-m GOAL]         a workplan on a new branch; opens the editor
-  workplan define-tasks [ID]           the agent writes the tasks; commits the plan
-  workplan produce-patch [ID/]NNNN     the agent writes output.patch and COMMIT_MSG
-  workplan apply  [ID/]NNNN            stage the patch in the tree and the index
-  workplan diff   [ID/]NNNN            the staged change, else the patch
-  workplan accept [ID/]NNNN            commit the patch with the task's files
-  workplan reject [ID/]NNNN            take an applied patch back out
-  workplan merge  [ID]                 squash into master; opens the editor
-
-and:
-  workplan status [ID | ID/NNNN] [--json]
-  workplan route  [REV] [--dispatch]
-  workplan install
-"""
-
 
 def page(text: str) -> None:
     if not sys.stdout.isatty():
@@ -45,8 +27,6 @@ def print_status(data: dict) -> None:
     for task in data["tasks"]:
         detail = task["detail"] or task["title"]
         print(f"{task['id']:<28} {task['state']:<12} {detail}".rstrip())
-        for problem in task["problems"]:
-            print(f"{'':<28} ! {problem}")
 
 
 def print_agent(result: dict) -> None:
@@ -56,11 +36,8 @@ def print_agent(result: dict) -> None:
 
 
 def parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="workplan",
-        description="Plan and record development work in git.",
-        epilog=USAGE, formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
+    p = argparse.ArgumentParser(prog="workplan",
+                                description="Plan and record development work in git.")
     p.add_argument("--version", action="version", version=f"workplan {__version__}")
     sub = p.add_subparsers(dest="command", required=True, metavar="command")
 

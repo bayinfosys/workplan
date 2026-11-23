@@ -190,18 +190,6 @@ class Cycle(unittest.TestCase):
                                                  "## Dropped\n\n0001  Task number 1\n"))
         self.assertEqual(self.states(), {"0000": "refinement", "0001": "dropped"})
 
-    def test_problems(self):
-        wid = planned(self.repo)
-        self.repo.write(f"workplans/{wid}/0000/TASK.md", "no title\n\nDepends on 0005.\n")
-        self.repo.write(f"workplans/{wid}/0003/TASK.md", "# Unlisted\n\nDepends on none.\n")
-        self.repo.write(f"workplans/{wid}/0000/COMMIT_MSG", "wrong\n")
-        data = json.loads(self.repo.wp("status", "--json").stdout)
-        problems = {t["id"].split("/")[1]: t["problems"] for t in data["tasks"]}
-        self.assertIn("TASK.md has no '# ' title", problems["0000"])
-        self.assertTrue(any("0005" in p for p in problems["0000"]))
-        self.assertTrue(any("COMMIT_MSG" in p for p in problems["0000"]))
-        self.assertIn("WORKPLAN.md does not list this task", problems["0003"])
-
 
 if __name__ == "__main__":
     unittest.main()

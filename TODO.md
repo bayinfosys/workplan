@@ -4,8 +4,6 @@ Each item below becomes a workplan in workplans/.
 
 ## Next
 
-- refactor the code to reduce number of files
-- dynamic version using `scm_tools`
 - serve: `workplan serve` on 127.0.0.1 with a startup token on every
   write; board by state from `status --json`; cards open TASK.md,
   BREAKDOWN.md and NOTES.md, rendered and editable; buttons for

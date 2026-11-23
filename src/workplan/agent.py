@@ -13,19 +13,40 @@ workplan owns the worktree for every agent:
    define-tasks   new task directories under workplans/<id>/ are
                   copied back, listed in WORKPLAN.md and committed
 6. remove the worktree
+
+An adapter is run(workdir, prompt, cfg, action, target) -> str, where
+action is define-tasks (target: a workplan id) or produce-patch
+(target: a task id). It changes files in workdir and returns the
+agent's final message:
+
+produce-patch  edit files outside workplans/; write the commit message
+               to workplans/<task id>/COMMIT_MSG
+define-tasks   write workplans/<id>/<nnnn>/TASK.md and BREAKDOWN.md
+               for each new task
+
+none     completions from an OpenAI-compatible endpoint: the reply
+         holds a unified diff and the commit message line, or task
+         files each after a line '===== <path> ====='; a reply that
+         cannot be used goes back with the error, up to agent.attempts
+         times
+command  agent.command, else a preset, run in the worktree; a
+         "{prompt}" argument is replaced by the prompt, else it goes on
+         stdin; WORKPLAN_ACTION, WORKPLAN_TARGET and, for
+         produce-patch, WORKPLAN_COMMIT_MSG are set in its environment
 """
 
+import os
 import re
 import shutil
 import subprocess
 import tempfile
+from functools import partial
 from pathlib import Path
 from typing import Callable
 
-from workplan import git, plans, templates
-from workplan.agents import ADAPTERS
+from workplan import git, llm, plans
 from workplan.git import Fail
-from workplan.state import commit_for
+from workplan.plans import commit_for
 
 EXCLUDE = f":(exclude){plans.ROOT}/"
 TASK_FILES = ("TASK.md", "BREAKDOWN.md", "NOTES.md")
@@ -124,7 +145,7 @@ def produce_patch(task: str, cfg: dict) -> dict:
              *(directory / f for f in TASK_FILES)]
 
     def work(workdir: Path) -> dict:
-        prompt = templates.render(
+        prompt = plans.render(
             "prompts", "produce-patch-none.md" if name == "none" else "produce-patch.md",
             id=tid, workplan=wid, commit_msg=str(directory / "COMMIT_MSG"),
             context=context(files, workdir, embed=name == "none"),
@@ -176,11 +197,11 @@ def define_tasks(arg: str | None, cfg: dict) -> dict:
              *(plans.ROOT / wid / n / f for n in sorted(existing) for f in TASK_FILES)]
 
     def work(workdir: Path) -> dict:
-        prompt = templates.render(
+        prompt = plans.render(
             "prompts", "define-tasks-none.md" if name == "none" else "define-tasks.md",
             id=wid, next=plans.next_number(wid),
-            task_template=templates.text("documents", "TASK.md"),
-            breakdown_template=templates.text("documents", "BREAKDOWN.md"),
+            task_template=plans.template_text("documents", "TASK.md"),
+            breakdown_template=plans.template_text("documents", "BREAKDOWN.md"),
             context=context(files, workdir, embed=name == "none"),
         )
         report = adapter(workdir, prompt, cfg, "define-tasks", wid)
@@ -219,3 +240,138 @@ def _need_plan(wid: str) -> Path:
     if not path.is_file():
         raise Fail(f"{path}: not found")
     return path
+
+# ---------------------------------------------------------------------------
+# adapters
+# ---------------------------------------------------------------------------
+
+FENCE = re.compile(r"```(?:diff|patch)?[ \t]*\n(.*?)```", re.S)
+FILE_HEADER = re.compile(r"^=====\s*(\S+)\s*=====\s*$", re.M)
+
+
+def parse_patch(reply: str, tid: str) -> tuple[str, str]:
+    """The commit message line and the diff in a reply."""
+    message = ""
+    for line in reply.splitlines():
+        line = line.strip().strip("`")
+        line = re.sub(r"^(COMMIT_MSG|Commit message)\s*:\s*", "", line, flags=re.I)
+        if line.startswith(f"{tid} "):
+            message = line
+            break
+
+    patch = ""
+    for block in FENCE.findall(reply):
+        if re.search(r"^(diff --git|--- )", block, re.M):
+            patch = block
+            break
+    if not patch:
+        m = re.search(r"^(diff --git|--- )", reply, re.M)
+        patch = reply[m.start():] if m else ""
+    if patch and not patch.endswith("\n"):
+        patch += "\n"
+    return message, patch
+
+
+def parse_files(reply: str, wid: str) -> dict[str, str]:
+    """Task files in a reply, keyed by path; other paths are ignored."""
+    allowed = re.compile(rf"^{re.escape(str(plans.ROOT))}/{re.escape(wid)}/\d{{4}}/"
+                         r"(TASK|BREAKDOWN|NOTES)\.md$")
+    parts = FILE_HEADER.split(reply)
+    files = {}
+    for path, body in zip(parts[1::2], parts[2::2]):
+        if allowed.match(path):
+            body = re.sub(r"^\s*```[a-z]*\n|\n```\s*$", "", body.strip("\n"))
+            files[path] = body.strip("\n") + "\n"
+    return files
+
+
+def use_patch(reply: str, workdir: Path, tid: str) -> str:
+    """Apply the reply's diff; return an error, or empty on success."""
+    message, patch = parse_patch(reply, tid)
+    if not patch:
+        return "the reply holds no unified diff"
+    result = subprocess.run(["git", "apply", "--recount", "--whitespace=nowarn", "-"],
+                            cwd=workdir, input=patch, capture_output=True, text=True)
+    if result.returncode != 0:
+        return f"the diff did not apply: {result.stderr.strip()}"
+    if message:
+        path = workdir / plans.ROOT / tid / "COMMIT_MSG"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(message + "\n")
+    return ""
+
+
+def use_files(reply: str, workdir: Path, wid: str) -> str:
+    """Write the reply's task files; return an error, or empty on success."""
+    files = parse_files(reply, wid)
+    if not any(path.endswith("/TASK.md") for path in files):
+        return ("the reply holds no TASK.md under a "
+                f"'===== {plans.ROOT}/{wid}/<nnnn>/TASK.md =====' line")
+    for path, text in files.items():
+        full = workdir / path
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(text)
+    return ""
+
+
+def run_none(workdir: Path, prompt: str, cfg: dict, action: str, target: str) -> str:
+    agent = cfg["agent"]
+    messages = [{"role": "user", "content": prompt}]
+    attempts = max(1, int(agent["attempts"]))
+    use = use_patch if action == "produce-patch" else use_files
+    error = ""
+
+    for _ in range(attempts):
+        reply = llm.chat(cfg, agent["model"], messages, float(agent["timeout"]))
+        error = use(reply, workdir, target)
+        if not error:
+            return reply
+        messages += [
+            {"role": "assistant", "content": reply},
+            {"role": "user", "content": f"That reply could not be used: {error}\n"
+                                        "Reply again, in full, in the form asked for."},
+        ]
+
+    raise Fail(f"no usable reply after {attempts} attempts: {error}")
+
+
+PRESETS = {
+    "claude-code": ["claude", "-p", "--allowedTools", "Read,Edit,Write,Glob,Grep,Bash"],
+    "codex": ["codex", "exec", "--sandbox", "workspace-write", "{prompt}"],
+}
+
+
+def run_command(workdir: Path, prompt: str, cfg: dict, action: str, target: str,
+                preset: str | None = None) -> str:
+    argv = list(cfg["agent"]["command"]) or list(PRESETS.get(preset or "", []))
+    if not argv:
+        raise Fail("agent.command is empty")
+
+    stdin = prompt
+    if "{prompt}" in argv:
+        argv = [prompt if a == "{prompt}" else a for a in argv]
+        stdin = None
+
+    env = {**os.environ, "WORKPLAN_ACTION": action, "WORKPLAN_TARGET": target}
+    if action == "produce-patch":
+        env["WORKPLAN_COMMIT_MSG"] = str(plans.ROOT / target / "COMMIT_MSG")
+    try:
+        result = subprocess.run(argv, cwd=workdir, input=stdin, capture_output=True, text=True,
+                                env=env, timeout=float(cfg["agent"]["timeout"]))
+    except FileNotFoundError as e:
+        raise Fail(f"agent command not found: {argv[0]}") from e
+    except subprocess.TimeoutExpired as e:
+        raise Fail(f"agent timed out after {cfg['agent']['timeout']}s") from e
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()[-800:]
+        raise Fail(f"agent exited {result.returncode}: {detail}")
+    return result.stdout
+
+
+ADAPTERS = {
+    "none": run_none,
+    "command": run_command,
+    "claude-code": partial(run_command, preset="claude-code"),
+    "codex": partial(run_command, preset="codex"),
+}

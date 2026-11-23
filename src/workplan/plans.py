@@ -1,10 +1,19 @@
-"""Workplans and tasks on disk: ids, discovery and the documents' formats.
+"""Workplans on disk: ids and documents, templates, and task states.
 
 Paths are relative to the repository root; the CLI runs from there.
+
+Templates are looked up in workplans/templates/<kind>/<name> first,
+then in the package, and rendered with string.Template substitution
+only: $name is replaced, $$ is a literal dollar sign.
+
+A task's state is derived from git history and the files alone; the
+first state in STATES that holds is the state.
 """
 
 import re
+from importlib import resources
 from pathlib import Path
+from string import Template
 
 from workplan import git
 from workplan.git import Fail
@@ -156,3 +165,90 @@ def add_task_line(wid: str, line: str) -> None:
     body = f"{body}\n\n{line}" if body else line
     result = text[:matches[tasks].end()] + "\n\n" + body + "\n\n" + text[end:].lstrip("\n")
     path.write_text(result.rstrip("\n") + "\n")
+
+
+# ---------------------------------------------------------------------------
+# templates
+# ---------------------------------------------------------------------------
+
+def template_text(kind: str, name: str) -> str:
+    local = ROOT / "templates" / kind / name
+    if local.is_file():
+        return local.read_text()
+    packaged = resources.files("workplan") / "templates" / kind / name
+    if not packaged.is_file():
+        raise Fail(f"no template {kind}/{name}")
+    return packaged.read_text()
+
+
+def render(kind: str, name: str, **values: str) -> str:
+    try:
+        return Template(template_text(kind, name)).substitute(values)
+    except (KeyError, ValueError) as e:
+        raise Fail(f"template {kind}/{name}: {e}") from e
+
+
+# ---------------------------------------------------------------------------
+# states
+# ---------------------------------------------------------------------------
+
+STATES = (
+    "merged", "complete", "dropped", "testing", "development",
+    "waiting", "stale", "refinement", "unspecified", "unknown",
+)
+
+
+def master_ref(master: str) -> str:
+    """Master, locally if it exists there, else on origin."""
+    for ref in (master, f"origin/{master}"):
+        if git.ref_exists(ref):
+            return ref
+    raise Fail(f"no branch {master}, locally or on origin")
+
+
+def commit_for(tid: str, ref: str) -> str:
+    """The latest commit in ref's history with a line starting with the
+    task id: the task's commit, or the squash that lists it."""
+    pattern = "^(\\+ )?" + tid.replace(".", "\\.") + " "
+    return git.run("log", ref, "-E", f"--grep={pattern}", "--format=%h %s", "-n", "1")
+
+
+def patch_applied(patch: Path) -> bool:
+    """True when the index or the tree already holds the patch."""
+    return (git.ok("apply", "--cached", "-R", "--check", str(patch))
+            or git.ok("apply", "-R", "--check", str(patch)))
+
+
+def state(tid: str, master: str, seen: frozenset = frozenset()) -> tuple[str, str]:
+    """A task's state and its detail: the commit, or the tasks waited on.
+    The first state in STATES that holds is the state."""
+    for ref, name in ((master_ref(master), "merged"), ("HEAD", "complete")):
+        if commit := commit_for(tid, ref):
+            return name, commit
+
+    wid, nnnn = tid.split("/")
+    tasks, dropped = listed(wid)
+    if nnnn in dropped:
+        return "dropped", ""
+
+    directory = ROOT / tid
+    patch = directory / "output.patch"
+    if patch.is_file():
+        if patch_applied(patch):
+            return "testing", ""
+        if git.ok("apply", "--check", str(patch)):
+            return "development", ""
+        pending = [
+            dep for dep in depends_on(tid)
+            if dep not in seen
+            and state(dep, master, seen | {tid})[0] not in ("merged", "complete")
+        ]
+        if pending:
+            return "waiting", "on " + ", ".join(pending)
+        return "stale", ""
+
+    if (directory / "TASK.md").is_file():
+        return "refinement", ""
+    if nnnn in tasks:
+        return "unspecified", ""
+    return "unknown", ""

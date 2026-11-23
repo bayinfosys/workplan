@@ -6,9 +6,9 @@ import re
 import stat
 from pathlib import Path
 
-from workplan import git, plans, templates
+from workplan import git, plans
 from workplan.git import Fail
-from workplan.state import commit_for, master_ref, patch_applied, problems, state
+from workplan.plans import commit_for, master_ref, patch_applied, state
 
 GITIGNORE = (
     "workplans/*/*/output.patch",
@@ -45,7 +45,7 @@ def init() -> list[str]:
         path = plans.ROOT / name
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(templates.render("project", name))
+            path.write_text(plans.render("project", name))
             done.append(f"created {path}")
             paths.append(str(path))
 
@@ -81,7 +81,7 @@ def plan(name: str, master: str, goal: str | None = None, today: str | None = No
         raise Fail(f"branch {branch} exists")
     start = master_ref(master)
 
-    rendered = templates.render("documents", "WORKPLAN.md", id=wid,
+    rendered = plans.render("documents", "WORKPLAN.md", id=wid,
                                 title=name.replace("-", " "),
                                 goal=" ".join(goal.split()) if goal else GOAL_PLACEHOLDER)
     if goal:
@@ -114,7 +114,6 @@ def task_status(tid: str, master: str) -> dict:
         "detail": detail,
         "title": plans.task_title(tid),
         "depends": plans.depends_on(tid),
-        "problems": problems(tid),
     }
 
 
@@ -203,7 +202,7 @@ def squash_message(wid: str, master: str, branch: str) -> str:
     ]
     if not subjects:
         raise Fail(f"no task commits on {branch} beyond {master}")
-    return templates.render(
+    return plans.render(
         "documents", "SQUASH_COMMIT_MSG",
         id=wid,
         title=plans.workplan_title(wid),

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools>=77", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -17,19 +17,26 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
     "Topic :: Software Development :: Version Control :: Git",
 ]
 
 [project.urls]
 Homepage = "https://github.com/bayinfosys/workplan"
+Repository = "https://github.com/bayinfosys/workplan"
 Specification = "https://github.com/bayinfosys/workplan/blob/master/SPEC.md"
+Issues = "https://github.com/bayinfosys/workplan/issues"
+"Bay Information Systems" = "https://www.bayis.co.uk/"
 
 [project.scripts]
 workplan = "workplan.cli:main"
 wp = "workplan.cli:main"
 
-[tool.setuptools.dynamic]
-version = { attr = "workplan.__version__" }
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
 
 [tool.setuptools.packages.find]
 where = ["src"]

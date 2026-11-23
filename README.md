@@ -82,7 +82,7 @@ scripted agent.
 | `accept NNNN` | commit the patch with COMMIT_MSG, together with the task's directory and WORKPLAN.md |
 | `reject NNNN` | take an applied patch back out |
 | `merge [ID]` | squash the workplan into master, with the message from its template |
-| `status [ID \| ID/NNNN] [--json]` | each task's state, and layout problems in its files |
+| `status [ID \| ID/NNNN] [--json]` | each task's state |
 | `route [REV] [--dispatch]` | the next step after a commit |
 | `install` | post-commit and post-merge hooks that run `route --dispatch` |
 
@@ -197,9 +197,8 @@ produce-patch 2026-11-24-greeting/0000
 ```
 
 `workplan install` adds hooks that run `workplan route --dispatch` in
-the background after each commit. `--dispatch` appends the decision to
-`.git/workplan/route.log` and runs `route.dispatch` with the action and
-its targets. `define-tasks` and `produce-patch` are also command
+the background after each commit. `--dispatch` runs `route.dispatch`
+with the action and its targets. `define-tasks` and `produce-patch` are also command
 names, so a dispatch script can run `workplan "$@"` for those two.
 
 ## Templates
@@ -219,6 +218,19 @@ python -m unittest discover -s tests
 The tests build temporary repositories, compare each command with its
 "By hand" block in SPEC.md, rehearse two clones sharing one origin, and
 run the `none` agent and the classifier against a local fake endpoint.
+
+The version comes from git tags through setuptools-scm. A release is a
+`vX.Y.Z` tag on master:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+`.github/workflows/release.yaml` builds the package on every push to
+master; on a tag it publishes the package to PyPI and creates the
+GitHub release. It runs in the `release` environment and needs the
+repository secret `PYPI_API_TOKEN`.
 
 ## Licence
 
