@@ -1,0 +1,28 @@
+# workplan configuration. Environment variables override each value
+# (see the workplan README); API keys come from the environment only.
+
+master = "master"
+
+[llm]
+# Any OpenAI-compatible endpoint; requests go to <api_base>/chat/completions.
+#   OpenAI      https://api.openai.com/v1           api_key_env = "OPENAI_API_KEY"
+#   Anthropic   https://api.anthropic.com/v1        api_key_env = "ANTHROPIC_API_KEY"
+#   Ollama      http://localhost:11434/v1
+#   marigold    http://localhost:8000/v1
+api_base = "http://localhost:8000/v1"
+api_key_env = "WORKPLAN_API_KEY"
+# params = { temperature = 0 }
+
+[route]
+classifier = "rules"   # rules | llm
+model = ""
+timeout = 120
+dispatch = ""          # run as: <dispatch> <action> <target>...
+
+[agent]
+name = "none"          # none | claude-code | codex | command
+model = ""             # for none
+attempts = 3           # for none
+timeout = 1800
+setup = ""             # shell command run in the worktree before the agent
+command = []           # argv for command; "{prompt}" is replaced, else stdin
