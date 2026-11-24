@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>workplan</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<header class="bar">
+  <span class="brand">workplan</span>
+  <label class="picker">
+    <span class="hidden-label">Workplan</span>
+    <select id="picker"></select>
+  </label>
+  <button id="new-plan" class="quiet">New workplan</button>
+  <p id="line" class="line" role="status" aria-live="polite"></p>
+</header>
+
+<main>
+  <p id="no-token" class="notice" hidden>Open the address that
+    <code>workplan serve</code> printed; it carries the token this page
+    needs.</p>
+
+  <section id="plan" class="plan" hidden>
+    <div class="plan-head">
+      <h1 id="title"></h1>
+      <div class="actions">
+        <button id="open-plan" class="quiet">WORKPLAN.md</button>
+        <button id="define-tasks">Define tasks</button>
+        <button id="merge">Merge</button>
+      </div>
+    </div>
+    <p class="branch"><code id="branch"></code> <span id="source"></span></p>
+    <p id="read-only" class="notice" hidden></p>
+    <div id="goal" class="md goal"></div>
+  </section>
+
+  <section id="board" class="board" aria-label="Tasks by state"></section>
+</main>
+
+<aside id="panel" class="panel" hidden aria-labelledby="panel-title">
+  <div class="panel-head">
+    <h2 id="panel-title"></h2>
+    <span id="panel-state" class="state"></span>
+    <button id="panel-close" class="quiet">Close</button>
+  </div>
+  <p id="panel-name" class="panel-name"></p>
+  <nav id="tabs" class="tabs" aria-label="Documents"></nav>
+  <div id="doc" class="doc md"></div>
+  <textarea id="editor" class="editor" hidden spellcheck="true"></textarea>
+  <div class="panel-foot">
+    <div id="doc-actions" class="actions"></div>
+    <div id="task-actions" class="actions"></div>
+  </div>
+</aside>
+
+<dialog id="plan-dialog">
+  <form method="dialog" id="plan-form">
+    <h2>New workplan</h2>
+    <label>Name
+      <input name="name" required pattern="[a-z0-9]+(-[a-z0-9]+)*"
+             placeholder="one-package" autocomplete="off">
+    </label>
+    <p class="hint">Lower-case words joined by hyphens. The id is today's
+      date and the name; the workplan gets a branch of its own.</p>
+    <label>Goal
+      <textarea name="goal" required rows="5"
+                placeholder="What is true when this workplan reaches master."></textarea>
+    </label>
+    <div class="actions">
+      <button value="cancel" formnovalidate class="quiet">Cancel</button>
+      <button value="plan">Create workplan</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="merge-dialog">
+  <form method="dialog" id="merge-form">
+    <h2>Merge into master</h2>
+    <p class="hint">The squash commit message, from the workplan's template.
+      Edit it here before merging.</p>
+    <textarea name="message" rows="16" class="editor"></textarea>
+    <div class="actions">
+      <button value="cancel" formnovalidate class="quiet">Cancel</button>
+      <button value="merge">Merge</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/app.js"></script>
+</body>
+</html>

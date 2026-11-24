@@ -1,5 +1,10 @@
 """The protocol's operations. Each returns data and prints nothing;
-the CLI formats it as text and a web server could send it as JSON."""
+the CLI formats it as text and the web server as JSON.
+
+A workplan is read from the working tree when it is there, else from
+its definition branch; it is editable only while that branch is
+checked out.
+"""
 
 import datetime
 import re
@@ -14,6 +19,8 @@ GITIGNORE = (
     "workplans/*/*/output.patch",
     "workplans/*/*/COMMIT_MSG",
 )
+
+DOCUMENT = re.compile(r"WORKPLAN\.md|\d{4}/(?:TASK|BREAKDOWN|NOTES)\.md")
 
 GOAL_PLACEHOLDER = "<What is true when this workplan reaches master, in a few sentences.>"
 
@@ -117,18 +124,110 @@ def task_status(tid: str, master: str) -> dict:
     }
 
 
+def editable(wid: str) -> bool:
+    return git.branch() == plans.branch_of(wid)
+
+
+def ref_status(wid: str, ref: str, master: str) -> dict:
+    """A workplan's committed states, read from a branch: its WORKPLAN.md,
+    its task directories, and the histories of master and the branch."""
+    text = plans.read_ref(ref, plans.plan_path(wid))
+    parts = plans.sections(text)
+    tasks = plans.TASK_LINE.findall(parts.get("tasks", ""))
+    dropped = plans.TASK_LINE.findall(parts.get("dropped", ""))
+    listing = git.run("ls-tree", "--name-only", ref, f"{plans.ROOT}/{wid}/").splitlines()
+    dirs = [Path(p).name for p in listing if plans.NNNN.fullmatch(Path(p).name)]
+    merged_in = master_ref(master)
+
+    rows = []
+    for n in sorted(set(tasks) | set(dropped) | set(dirs)):
+        tid = f"{wid}/{n}"
+        task = plans.read_ref(ref, plans.ROOT / tid / "TASK.md")
+        name, detail = "unknown", ""
+        if commit := commit_for(tid, merged_in):
+            name, detail = "merged", commit
+        elif commit := commit_for(tid, ref):
+            name, detail = "complete", commit
+        elif n in dropped:
+            name = "dropped"
+        elif task:
+            name = "refinement"
+        elif n in tasks:
+            name = "unspecified"
+        rows.append({"id": tid, "state": name, "detail": detail,
+                     "title": plans.title_of(task), "depends": plans.depends_of(task, wid)})
+
+    return {
+        "workplan": wid,
+        "title": plans.workplan_title_of(text),
+        "goal": plans.goal_of(text),
+        "branch": plans.branch_of(wid),
+        "source": ref,
+        "editable": False,
+        "tasks": rows,
+    }
+
+
 def status(arg: str | None, master: str) -> dict:
     if arg and ("/" in arg or plans.NNNN.fullmatch(arg)):
         tid = plans.task_id(arg)
         return {"workplan": tid.split("/")[0], "tasks": [task_status(tid, master)]}
-    wid = plans.workplan_id(arg)
+    wid = arg or plans.current_workplan()
+    if not (plans.ROOT / wid).is_dir() and (ref := plans.branches().get(wid)):
+        return ref_status(wid, ref, master)
+    wid = plans.workplan_id(wid)
     return {
         "workplan": wid,
         "title": plans.workplan_title(wid),
         "goal": plans.goal(wid),
         "branch": plans.branch_of(wid),
+        "source": "tree",
+        "editable": editable(wid),
         "tasks": [task_status(tid, master) for tid in plans.workplan_tasks(wid)],
     }
+
+
+def workplans() -> list[dict]:
+    """Every workplan: those in the working tree, then those held only
+    on a definition branch."""
+    match = plans.BRANCH.match(git.branch() + "/")
+    current = match[1] if match else None
+    rows = [{"id": wid, "title": plans.workplan_title(wid), "source": "tree",
+             "branch": plans.branch_of(wid), "current": wid == current,
+             "editable": editable(wid)} for wid in plans.workplans()]
+    held = {row["id"] for row in rows}
+    for wid, ref in plans.branches().items():
+        if wid not in held:
+            text = plans.read_ref(ref, plans.plan_path(wid))
+            rows.append({"id": wid, "title": plans.workplan_title_of(text), "source": ref,
+                         "branch": plans.branch_of(wid), "current": False, "editable": False})
+    return sorted(rows, key=lambda row: row["id"])
+
+
+def document(wid: str, name: str) -> dict:
+    """WORKPLAN.md or a task file, from the tree or the workplan's branch."""
+    if not plans.ID.fullmatch(wid) or not DOCUMENT.fullmatch(name):
+        raise Fail(f"{wid}/{name}: not a workplan document")
+    path = plans.ROOT / wid / name
+    if (plans.ROOT / wid).is_dir():
+        return {"text": path.read_text() if path.is_file() else "", "editable": editable(wid)}
+    if ref := plans.branches().get(wid):
+        return {"text": plans.read_ref(ref, path), "editable": False}
+    raise Fail(f"workplan {wid} not found")
+
+
+def save_document(wid: str, name: str, text: str) -> dict:
+    """Write WORKPLAN.md or a task file of the editable workplan. Nothing
+    is committed."""
+    if not plans.ID.fullmatch(wid) or not DOCUMENT.fullmatch(name):
+        raise Fail(f"{wid}/{name}: not a workplan document")
+    if not editable(wid):
+        raise Fail(f"{wid} is editable only on {plans.branch_of(wid)}")
+    path = plans.ROOT / wid / name
+    if not path.parent.is_dir():
+        raise Fail(f"{path.parent}: no such task")
+    path.write_text(text if not text or text.endswith("\n") else text + "\n")
+    return {"saved": str(path)}
 
 
 # ---------------------------------------------------------------------------
@@ -212,17 +311,9 @@ def squash_message(wid: str, master: str, branch: str) -> str:
     )
 
 
-def merge(arg: str | None, master: str, edit: bool = True) -> dict:
-    """Squash workplan/<id>/definition into master, with the message
-    rendered from the SQUASH_COMMIT_MSG template and opened in the
-    editor, as git commit does.
-
-    Every listed task must be committed or dropped, and the branch must
-    contain master. On any failure, master and the tree are restored.
-    """
-    wid = plans.workplan_id(arg)
+def ready_to_merge(wid: str, master: str) -> str:
+    """The workplan's branch, once every check before a merge passes."""
     branch = plans.branch_of(wid)
-
     if not git.ref_exists(f"refs/heads/{branch}"):
         raise Fail(f"branch {branch} does not exist")
     if not git.ref_exists(f"refs/heads/{master}"):
@@ -240,16 +331,35 @@ def merge(arg: str | None, master: str, edit: bool = True) -> dict:
     ]
     if open_tasks:
         raise Fail(f"not committed on {branch}: " + ", ".join(open_tasks))
+    return branch
+
+
+def merge_message(arg: str | None, master: str) -> str:
+    """The message merge would open in the editor."""
+    wid = plans.workplan_id(arg)
+    return squash_message(wid, master, ready_to_merge(wid, master))
+
+
+def merge(arg: str | None, master: str, edit: bool = True, message: str | None = None) -> dict:
+    """Squash workplan/<id>/definition into master. The message is the
+    one given, or the SQUASH_COMMIT_MSG template rendered and opened in
+    the editor, as git commit does.
+
+    Every listed task must be committed or dropped, and the branch must
+    contain master. On any failure, master and the tree are restored.
+    """
+    wid = plans.workplan_id(arg)
+    branch = ready_to_merge(wid, master)
 
     draft = git.git_path("workplan") / "SQUASH_COMMIT_MSG"
     draft.parent.mkdir(parents=True, exist_ok=True)
-    draft.write_text(squash_message(wid, master, branch))
+    draft.write_text(message if message is not None else squash_message(wid, master, branch))
 
     previous = git.branch()
     git.run("switch", "-q", master)
     try:
         git.run("merge", "--squash", branch)
-        if edit:
+        if edit and message is None:
             git.interactive("commit", "-q", "-e", "-F", str(draft))
         else:
             git.run("commit", "-q", "-F", str(draft))

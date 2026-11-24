@@ -8,7 +8,7 @@ import signal
 import subprocess
 import sys
 
-from workplan import __version__, agent, config, git, ops, route
+from workplan import __version__, agent, config, git, ops, route, serve
 from workplan.git import Fail
 
 
@@ -72,6 +72,9 @@ def parser() -> argparse.ArgumentParser:
                     help="record the decision and run route.dispatch")
 
     sub.add_parser("install", help="hooks that run route after each commit")
+
+    sv = sub.add_parser("serve", help="the board, in a local web page")
+    sv.add_argument("--port", type=int, default=8765)
     return p
 
 
@@ -130,6 +133,16 @@ def run(args: argparse.Namespace) -> None:
         case "install":
             for line in ops.install():
                 print(line)
+        case "serve":
+            server = serve.Server(args.port)
+            print(f"workplan serve: {server.url}", flush=True)
+            print("Ctrl-C stops it.", flush=True)
+            try:
+                server.serve_forever()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                server.server_close()
 
 
 def main(argv: list[str] | None = None) -> int:

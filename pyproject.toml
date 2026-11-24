@@ -42,4 +42,4 @@ local_scheme = "no-local-version"
 where = ["src"]
 
 [tool.setuptools.package-data]
-workplan = ["templates/*/*"]
+workplan = ["templates/*/*", "web/*"]

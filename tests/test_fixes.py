@@ -77,6 +77,31 @@ class Guards(unittest.TestCase):
         self.repo.wp("merge")
         self.assertTrue(self.repo.git("log", "-1", "--format=%B").startswith(f"{wid}: greeting\n"))
 
+    def test_save_document(self):
+        wid = planned(self.repo)
+        save = f"from workplan import ops; ops.save_document('{wid}', %r, 'text')"
+        self.repo.py(save % "0000/NOTES.md")
+        self.assertEqual(self.repo.read(f"workplans/{wid}/0000/NOTES.md"), "text\n")
+        self.assertEqual(self.repo.git("log", "-1", "--format=%s"), f"{wid} define tasks")
+        for name in ("0000/output.patch", "../config.toml", "0009/TASK.md", "app.txt"):
+            self.repo.py(save % name, ok=False)
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "notes")
+        self.repo.git("switch", "-q", "master")
+        self.repo.git("checkout", "-q", f"workplan/{wid}/definition", "--", "workplans")
+        result = self.repo.py(save % "0000/TASK.md", ok=False)
+        self.assertIn("editable only on", result.stderr)
+
+    def test_merge_with_a_message(self):
+        wid = self.ready()
+        preview = self.repo.py(
+            "from workplan import ops; print(ops.merge_message(None, 'master'), end='')").stdout
+        self.assertTrue(preview.startswith(f"{wid} greeting\n"))
+        self.repo.py("from workplan import ops; "
+                     "ops.merge(None, 'master', message='Short message\\n\\nBody\\n')",
+                     )
+        self.assertEqual(self.repo.git("log", "-1", "--format=%B").strip(), "Short message\n\nBody")
+
     def test_install_writes_and_respects_hooks(self):
         hooks = self.repo.path / ".git" / "hooks"
         hooks.mkdir(exist_ok=True)

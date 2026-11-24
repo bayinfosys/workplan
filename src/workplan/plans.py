@@ -117,21 +117,35 @@ def next_number(wid: str) -> str:
     return f"{max(numbers) + 1 if numbers else 0:04d}"
 
 
+def depends_of(text: str, wid: str) -> list[str]:
+    """The tasks named on a TASK.md's 'Depends on' line, in workplan wid."""
+    return [f"{wid}/{n}" for line in DEPENDS.findall(text) for n in NNNN.findall(line)]
+
+
 def depends_on(tid: str) -> list[str]:
-    """The tasks named on TASK.md's 'Depends on' line, in the same workplan."""
     path = ROOT / tid / "TASK.md"
-    if not path.is_file():
-        return []
-    wid = tid.split("/")[0]
-    return [f"{wid}/{n}" for line in DEPENDS.findall(path.read_text())
-            for n in NNNN.findall(line)]
+    return depends_of(path.read_text(), tid.split("/")[0]) if path.is_file() else []
+
+
+def title_of(text: str) -> str:
+    """The text of a document's first '# ' line."""
+    m = TITLE.search(text)
+    return m[1].strip() if m else ""
+
+
+def goal_of(text: str) -> str:
+    """The text of a WORKPLAN.md's Goal section."""
+    return sections(text).get("goal", "").strip()
+
+
+def workplan_title_of(text: str) -> str:
+    """The title in a WORKPLAN.md's first line, '# Workplan <id>: <title>'."""
+    heading = title_of(text)
+    return heading.split(": ", 1)[1].strip() if ": " in heading else heading
 
 
 def title(path: Path) -> str:
-    if not path.is_file():
-        return ""
-    m = TITLE.search(path.read_text())
-    return m[1].strip() if m else ""
+    return title_of(path.read_text()) if path.is_file() else ""
 
 
 def task_title(tid: str) -> str:
@@ -139,17 +153,33 @@ def task_title(tid: str) -> str:
 
 
 def goal(wid: str) -> str:
-    """The text of WORKPLAN.md's Goal section."""
     path = plan_path(wid)
-    if not path.is_file():
-        return ""
-    return sections(path.read_text()).get("goal", "").strip()
+    return goal_of(path.read_text()) if path.is_file() else ""
 
 
 def workplan_title(wid: str) -> str:
-    """The title in WORKPLAN.md's first line, '# Workplan <id>: <title>'."""
-    text = title(plan_path(wid))
-    return text.split(": ", 1)[1].strip() if ": " in text else text
+    path = plan_path(wid)
+    return workplan_title_of(path.read_text()) if path.is_file() else ""
+
+
+def branches() -> dict[str, str]:
+    """Each workplan held on a definition branch, mapped to that branch:
+    the local branch, else origin's."""
+    found: dict[str, str] = {}
+    for pattern in ("refs/heads/workplan/*/definition",
+                    "refs/remotes/origin/workplan/*/definition"):
+        for ref in git.run("for-each-ref", "--format=%(refname:short)", pattern).splitlines():
+            m = re.fullmatch(r"(?:origin/)?workplan/([^/]+)/definition", ref)
+            if m and ID.fullmatch(m[1]) and m[1] not in found:
+                found[m[1]] = ref
+    return found
+
+
+def read_ref(ref: str, path: Path | str) -> str:
+    """A file's text on a branch, or empty when the branch lacks it."""
+    if not git.ok("cat-file", "-e", f"{ref}:{path}"):
+        return ""
+    return git.run("show", f"{ref}:{path}", strip=False)
 
 
 def add_task_line(wid: str, line: str) -> None:

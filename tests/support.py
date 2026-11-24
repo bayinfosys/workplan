@@ -62,6 +62,16 @@ class Repo:
             raise AssertionError(f"workplan {' '.join(args)} succeeded: {result.stdout}")
         return result
 
+    def py(self, code: str, ok: bool = True) -> subprocess.CompletedProcess:
+        """Run Python in the repository with the package importable."""
+        result = subprocess.run([sys.executable, "-c", code], cwd=self.path, capture_output=True,
+                                text=True, env=self.env())
+        if ok and result.returncode != 0:
+            raise AssertionError(f"python: {code}\n{result.stderr}")
+        if not ok and result.returncode == 0:
+            raise AssertionError(f"python succeeded: {code}\n{result.stdout}")
+        return result
+
     def write(self, rel: str, text: str) -> Path:
         path = self.path / rel
         path.parent.mkdir(parents=True, exist_ok=True)

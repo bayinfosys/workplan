@@ -82,9 +82,10 @@ scripted agent.
 | `accept NNNN` | commit the patch with COMMIT_MSG, together with the task's directory and WORKPLAN.md |
 | `reject NNNN` | take an applied patch back out |
 | `merge [ID]` | squash the workplan into master, with the message from its template |
-| `status [ID \| ID/NNNN] [--json]` | each task's state |
+| `status [ID \| ID/NNNN] [--json]` | each task's state; a workplan held only on another branch shows its committed states |
 | `route [REV] [--dispatch]` | the next step after a commit |
 | `install` | post-commit and post-merge hooks that run `route --dispatch` |
+| `serve [--port N]` | the board in a local web page, on 127.0.0.1 |
 
 A task is `ID/NNNN`, or `NNNN` in the current branch's workplan.
 
@@ -200,6 +201,35 @@ produce-patch 2026-11-24-greeting/0000
 the background after each commit. `--dispatch` runs `route.dispatch`
 with the action and its targets. `define-tasks` and `produce-patch` are also command
 names, so a dispatch script can run `workplan "$@"` for those two.
+
+## Serve
+
+```bash
+workplan serve                     # http://127.0.0.1:8765/?token=...
+```
+
+`serve` starts a web server on 127.0.0.1 and prints its address, with
+a token made at startup. The page runs the same operations as the
+commands, so the whole flow can run from the browser, for instance
+over a screen share while a team refines the tasks. A workplan is
+editable while its definition branch is checked out; workplans on
+other branches are shown read-only, read from their branches.
+
+The page shows the workplan's title, branch and goal, and a board with
+a column for each state. A card opens the task's TASK.md, BREAKDOWN.md,
+NOTES.md and patch, rendered, with Edit and Save; its buttons are the
+steps its state allows: Produce patch, Apply, Accept, Reject. The
+header holds Define tasks and Merge, and the merge message opens in a
+text box. New workplan asks for a name and a goal. The selector lists
+every workplan, those on other branches marked read-only. The page
+refreshes every five seconds, so commits made in a terminal appear on
+their own.
+
+Every request must name 127.0.0.1 or localhost as its host, and every
+API request must carry the token, so another site open in the browser
+can neither read nor change anything. Operations that change the
+repository run one at a time. The server keeps no state of its own:
+everything it shows comes from the files and git.
 
 ## Templates
 

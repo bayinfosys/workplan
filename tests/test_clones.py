@@ -75,6 +75,22 @@ class TwoClones(unittest.TestCase):
         bob.git("pull", "-q", "--rebase", "origin", "master")
         self.assertEqual(self.states(bob, wid), {"0000": "merged", "0001": "dropped"})
 
+    def test_workplan_on_another_branch(self):
+        wid = planned(self.alice, tasks=2, agent=self.agent)
+        self.alice.wp("produce-patch", "0000", env=self.env)
+        self.alice.wp("accept", "0000")
+        self.alice.git("push", "-q", "origin", "master", f"workplan/{wid}/definition")
+
+        bob = self.clone("bob")
+        self.assertEqual(bob.git("branch", "--show-current"), "master")
+        data = json.loads(bob.wp("status", wid, "--json").stdout)
+        self.assertEqual(data["source"], f"origin/workplan/{wid}/definition")
+        self.assertFalse(data["editable"])
+        self.assertEqual(data["title"], "greeting")
+        self.assertEqual({t["id"].split("/")[1]: t["state"] for t in data["tasks"]},
+                         {"0000": "complete", "0001": "refinement"})
+        self.assertEqual(data["tasks"][1]["depends"], [f"{wid}/0000"])
+
 
 if __name__ == "__main__":
     unittest.main()

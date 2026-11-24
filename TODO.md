@@ -4,11 +4,6 @@ Each item below becomes a workplan in workplans/.
 
 ## Next
 
-- serve: `workplan serve` on 127.0.0.1 with a startup token on every
-  write; board by state from `status --json`; cards open TASK.md,
-  BREAKDOWN.md and NOTES.md, rendered and editable; buttons for
-  define-tasks, produce-patch, diff, accept and reject; writes confined
-  to workplans/; files in src/workplan/web/
 - review: an agent step for the `review` action, and where its notes go
 - internal agent: a tool loop over chat completions (read, list,
   grep, edit, allowlisted command), paths confined to the worktree
