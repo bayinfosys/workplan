@@ -34,38 +34,50 @@ Run it on full auto for the real vibe coding experience, or manual for the good 
 - **Manual:** git and an editor. [SPEC.md](SPEC.md) gives every step by hand; the `workplan` command is optional.
 - **Semi-automatic:** run each command; Agents define tasks and produce patches; you read the diffs and accept or reject.
 - **Full auto:** `workplan install` adds hooks that route each commit
-  to its next step, and `route.dispatch` runs `define-tasks` and
-  `produce-patch` as soon as they are due. Accepting each patch and
+  to its next step, and `route.dispatch` runs `gen-task` and
+  `gen-patch` as soon as they are due. Accepting each patch and
   merging stay with you.
 
 ## A workplan from start to finish
 
 ```bash
 workplan init                      # create workplans/ and commit it
-workplan plan greeting             # branch workplan/<date>-greeting/definition;
+workplan add-workplan greeting     # branch workplan/<date>-greeting/definition;
                                    # the editor opens on WORKPLAN.md: goal, context, findings
-workplan define-tasks              # the agent writes the tasks; WORKPLAN.md and the
+workplan gen-task                  # the agent writes the tasks; WORKPLAN.md and the
                                    # tasks are committed
 git push                           # share the plan
 
-workplan produce-patch 0000        # the agent writes output.patch and COMMIT_MSG
-workplan apply 0000                # stage it
-workplan diff 0000                 # read it, test it
-workplan accept 0000               # commit it with the task's files; or: workplan reject 0000
+workplan gen-patch 0000            # the agent writes output.patch and COMMIT_MSG
+workplan apply-patch 0000          # stage it
+workplan show-patch 0000           # read it, test it
+workplan accept-patch 0000         # commit it with the task's files; or: reject-patch
 workplan status
 
-workplan merge                     # squash into master; the editor opens on the message
+workplan merge-workplan            # squash into master; the editor opens on the message
 ```
 
-The commands commit what they complete: `init`, `define-tasks`,
-`accept` and `merge`. Pushing is the maintainer's.
+The commands commit what they complete: `init`, `gen-task`,
+`accept-patch` and `merge-workplan`. Pushing is the maintainer's.
 
-`plan` opens the editor git uses for commit messages, on WORKPLAN.md
-rendered from its template; closing it unchanged creates nothing.
-`plan greeting -m "app.txt says goodbye"` writes the goal and skips the
-editor.
+Commands are `verb-noun` over three nouns, `workplan`, `task` and
+`patch`. `list` and `show` read; `add` is you supplying something;
+`gen` is the agent producing it; `edit` changes a document; `apply`,
+`accept`, `reject` and `merge` are the protocol's steps. `status` is
+a second name for `list-task`.
 
-Every command also runs as `wp`: `wp plan greeting`, `wp accept 0000`.
+To write tasks yourself in place of `gen-task`, use
+`add-task "Say goodbye" --depend 0000` for each; `accept-patch` commits
+a task's files with its patch.
+
+`add-workplan` opens the editor git uses for commit messages, on
+WORKPLAN.md rendered from its template; closing it unchanged creates
+nothing. `add-workplan greeting -m "app.txt says goodbye"` writes the
+goal and skips the editor. `edit-workplan` and `edit-task` open the
+editor the same way on an existing document.
+
+Every command also runs as `wp`: `wp add-workplan greeting`,
+`wp accept-patch 0000`.
 
 `examples/demo.sh` runs this cycle in a temporary repository with a
 scripted agent.
@@ -75,19 +87,49 @@ scripted agent.
 | Command | Does |
 |---|---|
 | `init` | create `workplans/` with README, PRINCIPLES.md and config.toml; add the working files to .gitignore; commit |
-| `plan NAME [-m GOAL]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, on a new branch from master |
-| `define-tasks [ID]` | the agent writes each new task's TASK.md and BREAKDOWN.md; they are listed in WORKPLAN.md and committed with it |
-| `produce-patch NNNN` | the agent writes output.patch and COMMIT_MSG |
-| `apply NNNN`, `diff NNNN` | stage the patch; show it |
-| `accept NNNN` | commit the patch with COMMIT_MSG, together with the task's directory and WORKPLAN.md |
-| `reject NNNN` | take an applied patch back out |
-| `merge [ID]` | squash the workplan into master, with the message from its template |
-| `status [ID \| ID/NNNN] [--json]` | each task's state; a workplan held only on another branch shows its committed states |
+| `list-workplan` | every workplan, in the tree or on another branch, and whether it is editable |
+| `show-workplan [ID]` | the workplan's goal and its tasks' states |
+| `add-workplan NAME [-m GOAL]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, on a new branch from master |
+| `edit-workplan [ID]` | WORKPLAN.md in the editor |
+| `merge-workplan [ID] [-m MESSAGE] [--show]` | squash the workplan into master, with the message from its template; `--show` prints the message |
+| `list-task [ID]`, `status [ID]` | each task's state; a workplan held only on another branch shows its committed states |
+| `show-task NNNN` | the task's state and TASK.md |
+| `add-task TITLE [--depend N] [-m CHANGE]` | the next task's TASK.md and BREAKDOWN.md from their templates, and its line in WORKPLAN.md; the editor opens on TASK.md |
+| `add-task --reply FILE` | the new tasks in a gen-task reply from a chat; `-` reads standard input |
+| `gen-task [ID] [--prompt]` | the agent writes each new task's TASK.md and BREAKDOWN.md; they are listed in WORKPLAN.md and committed with it; `--prompt` prints the prompt for a chat |
+| `edit-task NNNN [--doc NAME]` | TASK.md, BREAKDOWN.md or NOTES.md in the editor |
+| `drop-task NNNN` | move the task to `## Dropped` in WORKPLAN.md and commit WORKPLAN.md |
+| `show-patch NNNN` | the staged change if applied, else output.patch |
+| `gen-patch NNNN [--prompt]` | the agent writes output.patch and COMMIT_MSG; `--prompt` prints the prompt for a chat |
+| `add-patch NNNN [FILE]` | a reply from a chat, with its commit message line and diff, becomes output.patch and COMMIT_MSG; standard input when FILE is left out |
+| `apply-patch NNNN` | stage the patch in the tree and the index |
+| `accept-patch NNNN` | commit the patch with COMMIT_MSG, together with the task's directory and WORKPLAN.md |
+| `reject-patch NNNN` | take an applied patch back out |
+| `drop-patch NNNN` | delete an unapplied output.patch and its COMMIT_MSG |
 | `route [REV] [--dispatch]` | the next step after a commit |
 | `install` | post-commit and post-merge hooks that run `route --dispatch` |
 | `serve [--port N]` | the board in a local web page, on 127.0.0.1 |
 
-A task is `ID/NNNN`, or `NNNN` in the current branch's workplan.
+A task is `ID/NNNN`, or `NNNN` in the current branch's workplan. Every
+command takes `--json` to print its result as JSON.
+
+## Manual mode with a chat
+
+With no agent configured, any chat can do the agent's work. `--prompt`
+prints the prompt the `none` agent would send, with the files it
+names; paste it into a chat, and paste the reply back:
+
+```bash
+workplan gen-task --prompt          # paste into a chat
+workplan add-task --reply reply.txt # its new tasks; - reads standard input
+workplan gen-patch 0000 --prompt
+workplan add-patch 0000 reply.txt   # its diff and commit message line
+```
+
+`add-patch` applies the reply's diff to the head of the workplan's
+branch in a separate worktree, and refuses a reply with no diff or one
+that does not apply. In the page, Copy prompt and Paste reply do the
+same, beside Gen tasks and Gen patch.
 
 ## Configuration
 
@@ -112,14 +154,14 @@ environment only.
 
 ## Agents
 
-`define-tasks` and `produce-patch` create a worktree at the head of
+`gen-task` and `gen-patch` create a worktree at the head of
 the workplan branch, copy `workplans/` into it, run `agent.setup`, then
 the agent. The worktree is removed afterwards; the maintainer's own
 tree is never touched.
 
-- `define-tasks`: the new task directories the agent wrote under
+- `gen-task`: the new task directories the agent wrote under
   `workplans/<id>/` are copied back; existing tasks are left alone.
-- `produce-patch`: the worktree's diff outside `workplans/` becomes
+- `gen-patch`: the worktree's diff outside `workplans/` becomes
   output.patch.
 
 | `agent.name` | Runs |
@@ -135,9 +177,9 @@ build the code and run its checks in the worktree. Containers, ports
 and other host resources are shared with the host, so integration runs
 stay with the maintainer.
 
-A `command` agent receives `WORKPLAN_ACTION` (`define-tasks` or
-`produce-patch`) and `WORKPLAN_TARGET` (the workplan or task id) in its
-environment, and for `produce-patch`, `WORKPLAN_COMMIT_MSG`: the path
+A `command` agent receives `WORKPLAN_ACTION` (`gen-task` or
+`gen-patch`) and `WORKPLAN_TARGET` (the workplan or task id) in its
+environment, and for `gen-patch`, `WORKPLAN_COMMIT_MSG`: the path
 to write the commit message to. When it writes none, COMMIT_MSG is the
 task id and TASK.md's title.
 
@@ -184,7 +226,7 @@ model = "<model name>"
 ## Routing
 
 `workplan route` reads a commit and prints the next step: `complete`,
-`review`, `produce-patch`, `define-tasks` or `none`, with its targets.
+`review`, `gen-patch`, `gen-task` or `none`, with its targets.
 The rules are in SPEC.md, section 10. With `route.classifier = "llm"`,
 a model chooses the action from the prompt in
 `templates/prompts/route.md`; the targets still come from the commit,
@@ -193,13 +235,13 @@ rules. stderr shows both choices:
 
 ```
 $ workplan route
-route: llm chose produce-patch; the rules chose produce-patch
-produce-patch 2026-11-24-greeting/0000
+route: llm chose gen-patch; the rules chose gen-patch
+gen-patch 2026-11-24-greeting/0000
 ```
 
 `workplan install` adds hooks that run `workplan route --dispatch` in
 the background after each commit. `--dispatch` runs `route.dispatch`
-with the action and its targets. `define-tasks` and `produce-patch` are also command
+with the action and its targets. `gen-task` and `gen-patch` are also command
 names, so a dispatch script can run `workplan "$@"` for those two.
 
 ## Serve
@@ -218,12 +260,18 @@ other branches are shown read-only, read from their branches.
 The page shows the workplan's title, branch and goal, and a board with
 a column for each state. A card opens the task's TASK.md, BREAKDOWN.md,
 NOTES.md and patch, rendered, with Edit and Save; its buttons are the
-steps its state allows: Produce patch, Apply, Accept, Reject. The
-header holds Define tasks and Merge, and the merge message opens in a
+steps its state allows: Gen patch, Apply, Accept, Reject. The
+header holds Gen tasks and Merge, and the merge message opens in a
 text box. New workplan asks for a name and a goal. The selector lists
 every workplan, those on other branches marked read-only. The page
 refreshes every five seconds, so commits made in a terminal appear on
 their own.
+
+The page and the commands share one API: every command but `init`,
+`install` and `serve` has a route, given by its verb and noun.
+`list-task` is `GET /api/workplan/{id}/task`, `accept-patch` is
+`POST /api/task/{id}/{nnnn}/patch/accept`, and so on; registry.py
+holds the rule.
 
 Every request must name 127.0.0.1 or localhost as its host, and every
 API request must carry the token, so another site open in the browser

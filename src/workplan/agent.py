@@ -1,4 +1,4 @@
-"""define-tasks and produce-patch: an agent's work in a worktree.
+"""gen-task and gen-patch: an agent's work in a worktree.
 
 workplan owns the worktree for every agent:
 
@@ -8,21 +8,21 @@ workplan owns the worktree for every agent:
 3. run agent.setup in the worktree
 4. render the prompt and run the adapter in the worktree
 5. bring the result back:
-   produce-patch  the diff outside workplans/ becomes output.patch,
-                  and COMMIT_MSG is copied out
-   define-tasks   new task directories under workplans/<id>/ are
-                  copied back, listed in WORKPLAN.md and committed
+   gen-patch  the diff outside workplans/ becomes output.patch, and
+              COMMIT_MSG is copied out
+   gen-task   new task directories under workplans/<id>/ are copied
+              back, listed in WORKPLAN.md and committed
 6. remove the worktree
 
 An adapter is run(workdir, prompt, cfg, action, target) -> str, where
-action is define-tasks (target: a workplan id) or produce-patch
+action is gen-task (target: a workplan id) or gen-patch
 (target: a task id). It changes files in workdir and returns the
 agent's final message:
 
-produce-patch  edit files outside workplans/; write the commit message
-               to workplans/<task id>/COMMIT_MSG
-define-tasks   write workplans/<id>/<nnnn>/TASK.md and BREAKDOWN.md
-               for each new task
+gen-patch  edit files outside workplans/; write the commit message to
+           workplans/<task id>/COMMIT_MSG
+gen-task   write workplans/<id>/<nnnn>/TASK.md and BREAKDOWN.md for
+           each new task
 
 none     completions from an OpenAI-compatible endpoint: the reply
          holds a unified diff and the commit message line, or task
@@ -32,7 +32,7 @@ none     completions from an OpenAI-compatible endpoint: the reply
 command  agent.command, else a preset, run in the worktree; a
          "{prompt}" argument is replaced by the prompt, else it goes on
          stdin; WORKPLAN_ACTION, WORKPLAN_TARGET and, for
-         produce-patch, WORKPLAN_COMMIT_MSG are set in its environment
+         gen-patch, WORKPLAN_COMMIT_MSG are set in its environment
 """
 
 import os
@@ -44,7 +44,7 @@ from functools import partial
 from pathlib import Path
 from typing import Callable
 
-from workplan import git, llm, plans
+from workplan import git, llm, ops, plans
 from workplan.git import Fail
 from workplan.plans import commit_for
 
@@ -105,7 +105,7 @@ def adapter_for(cfg: dict):
     return name, ADAPTERS[name]
 
 
-def in_worktree(wid: str, cfg: dict, work: Callable[[Path], dict]) -> dict:
+def in_worktree(wid: str, cfg: dict, work: Callable[[Path], dict], setup: bool = True) -> dict:
     """Run work(workdir) in a fresh worktree of the workplan's branch."""
     branch = plans.branch_of(wid)
     base = branch if git.ref_exists(f"refs/heads/{branch}") else "HEAD"
@@ -114,8 +114,8 @@ def in_worktree(wid: str, cfg: dict, work: Callable[[Path], dict]) -> dict:
     try:
         shutil.copytree(plans.ROOT, workdir / plans.ROOT, dirs_exist_ok=True,
                         ignore=shutil.ignore_patterns("output.patch", "COMMIT_MSG"))
-        if setup := cfg["agent"]["setup"]:
-            result = subprocess.run(setup, shell=True, cwd=workdir, capture_output=True,
+        if setup and (command := cfg["agent"]["setup"]):
+            result = subprocess.run(command, shell=True, cwd=workdir, capture_output=True,
                                     text=True)
             if result.returncode != 0:
                 raise Fail(f"agent.setup failed: {(result.stderr or result.stdout).strip()[-800:]}")
@@ -129,40 +129,106 @@ def in_worktree(wid: str, cfg: dict, work: Callable[[Path], dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# produce-patch
+# prompts
 # ---------------------------------------------------------------------------
 
-def produce_patch(task: str, cfg: dict) -> dict:
-    tid = plans.task_id(task)
+def patch_prompt(tid: str, embed: bool, root: Path) -> str:
+    """The gen-patch prompt: with the files' contents for an agent
+    without tools, with their paths for one with tools."""
     wid = tid.split("/")[0]
     directory = plans.ROOT / tid
-    if not (directory / "TASK.md").is_file():
-        raise Fail(f"{directory}/TASK.md: not found")
-    if commit := commit_for(tid, "HEAD"):
-        raise Fail(f"{tid} is committed: {commit}")
-    name, adapter = adapter_for(cfg)
     files = [plans.ROOT / "PRINCIPLES.md", plans.plan_path(wid),
              *(directory / f for f in TASK_FILES)]
+    return plans.render(
+        "prompts", "gen-patch-none.md" if embed else "gen-patch.md",
+        id=tid, workplan=wid, commit_msg=str(directory / "COMMIT_MSG"),
+        context=context(files, root, embed=embed),
+    )
 
-    def work(workdir: Path) -> dict:
-        prompt = plans.render(
-            "prompts", "produce-patch-none.md" if name == "none" else "produce-patch.md",
-            id=tid, workplan=wid, commit_msg=str(directory / "COMMIT_MSG"),
-            context=context(files, workdir, embed=name == "none"),
-        )
-        report = adapter(workdir, prompt, cfg, "produce-patch", tid)
-        git.run("add", "-A", "--", ".", EXCLUDE, cwd=workdir)
-        patch = git.run("diff", "--cached", "--binary", "--", ".", EXCLUDE, cwd=workdir,
-                        strip=False)
-        if not patch.strip():
-            raise Fail(f"the agent made no change outside {plans.ROOT}/\n{report.strip()[-800:]}")
-        message, note = commit_message(workdir / directory / "COMMIT_MSG", tid)
-        return {"patch": patch, "commit_msg": message, "note": note, "report": report.strip()}
 
-    result = in_worktree(wid, cfg, work)
+def task_prompt(wid: str, embed: bool, root: Path) -> str:
+    """The gen-task prompt, in the same two forms."""
+    files = [plans.ROOT / "PRINCIPLES.md", plans.plan_path(wid),
+             *(plans.ROOT / wid / n / f for n in plans.task_dirs(wid) for f in TASK_FILES)]
+    return plans.render(
+        "prompts", "gen-task-none.md" if embed else "gen-task.md",
+        id=wid, next=plans.next_number(wid),
+        task_template=plans.template_text("documents", "TASK.md"),
+        breakdown_template=plans.template_text("documents", "BREAKDOWN.md"),
+        context=context(files, root, embed=embed),
+    )
+
+
+def prompt(action: str, target: str | None) -> dict:
+    """The prompt the none agent would send, from this tree, to paste
+    into a chat. Nothing changes."""
+    if action == "gen-patch":
+        tid = plans.task_id(target)
+        if not (plans.ROOT / tid / "TASK.md").is_file():
+            raise Fail(f"{plans.ROOT / tid}/TASK.md: not found")
+        return {"prompt": patch_prompt(tid, True, Path.cwd())}
+    wid = plans.workplan_id(target)
+    _need_plan(wid)
+    return {"prompt": task_prompt(wid, True, Path.cwd())}
+
+
+# ---------------------------------------------------------------------------
+# gen-patch and add-patch
+# ---------------------------------------------------------------------------
+
+def patch_task(task: str) -> str:
+    tid = plans.task_id(task)
+    if not (plans.ROOT / tid / "TASK.md").is_file():
+        raise Fail(f"{plans.ROOT / tid}/TASK.md: not found")
+    if commit := commit_for(tid, "HEAD"):
+        raise Fail(f"{tid} is committed: {commit}")
+    return tid
+
+
+def capture(workdir: Path, tid: str, report: str) -> dict:
+    """The worktree's change outside workplans/, and its commit message."""
+    git.run("add", "-A", "--", ".", EXCLUDE, cwd=workdir)
+    patch = git.run("diff", "--cached", "--binary", "--", ".", EXCLUDE, cwd=workdir, strip=False)
+    if not patch.strip():
+        raise Fail(f"no change outside {plans.ROOT}/\n{report.strip()[-800:]}")
+    message, note = commit_message(workdir / plans.ROOT / tid / "COMMIT_MSG", tid)
+    return {"patch": patch, "commit_msg": message, "note": note, "report": report.strip()}
+
+
+def keep_patch(tid: str, result: dict) -> dict:
+    directory = plans.ROOT / tid
     (directory / "output.patch").write_text(result.pop("patch"))
     (directory / "COMMIT_MSG").write_text(result["commit_msg"] + "\n")
-    result.update(task=tid, agent=name, patch=str(directory / "output.patch"))
+    result.update(task=tid, patch=str(directory / "output.patch"))
+    return result
+
+
+def gen_patch(task: str, cfg: dict) -> dict:
+    tid = patch_task(task)
+    name, adapter = adapter_for(cfg)
+
+    def work(workdir: Path) -> dict:
+        report = adapter(workdir, patch_prompt(tid, name == "none", workdir), cfg, "gen-patch", tid)
+        return capture(workdir, tid, report)
+
+    result = keep_patch(tid, in_worktree(tid.split("/")[0], cfg, work))
+    result["agent"] = name
+    return result
+
+
+def add_patch(task: str, reply: str, cfg: dict) -> dict:
+    """A reply in the none agent's form, pasted from a chat: its diff is
+    applied in a worktree of the branch head, and kept as output.patch
+    with its commit message."""
+    tid = patch_task(task)
+
+    def work(workdir: Path) -> dict:
+        if error := use_patch(reply, workdir, tid):
+            raise Fail(f"the reply cannot be used: {error}")
+        return capture(workdir, tid, "")
+
+    result = keep_patch(tid, in_worktree(tid.split("/")[0], cfg, work, setup=False))
+    result["agent"] = "a pasted reply"
     return result
 
 
@@ -178,10 +244,29 @@ def commit_message(path: Path, tid: str) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# define-tasks
+# gen-task and add-task with a reply
 # ---------------------------------------------------------------------------
 
-def define_tasks(arg: str | None, cfg: dict) -> dict:
+def keep_tasks(wid: str, documents: dict[str, dict[str, str]]) -> list[str]:
+    """Write new task directories and list them in WORKPLAN.md; a task
+    directory that exists is left alone."""
+    existing = set(plans.task_dirs(wid))
+    tasks, dropped = plans.listed(wid)
+    kept = []
+    for nnnn, files in sorted(documents.items()):
+        if nnnn in existing or "TASK.md" not in files:
+            continue
+        for filename, text in files.items():
+            path = plans.ROOT / wid / nnnn / filename
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        if nnnn not in tasks and nnnn not in dropped:
+            plans.add_task_line(wid, f"{nnnn}  {plans.task_title(f'{wid}/{nnnn}')}")
+        kept.append(f"{wid}/{nnnn}")
+    return kept
+
+
+def gen_task(arg: str | None, cfg: dict) -> dict:
     """The agent writes the workplan's tasks. New task directories are
     copied back and listed in WORKPLAN.md; existing ones are left alone.
     WORKPLAN.md and the new tasks are committed together."""
@@ -189,50 +274,48 @@ def define_tasks(arg: str | None, cfg: dict) -> dict:
     branch = plans.branch_of(wid)
     plan_file = _need_plan(wid)
     if git.branch() != branch:
-        raise Fail(f"define-tasks commits on {branch}; switch to it first")
+        raise Fail(f"gen-task commits on {branch}; switch to it first")
     name, adapter = adapter_for(cfg)
-
     existing = set(plans.task_dirs(wid))
-    files = [plans.ROOT / "PRINCIPLES.md", plan_file,
-             *(plans.ROOT / wid / n / f for n in sorted(existing) for f in TASK_FILES)]
 
     def work(workdir: Path) -> dict:
-        prompt = plans.render(
-            "prompts", "define-tasks-none.md" if name == "none" else "define-tasks.md",
-            id=wid, next=plans.next_number(wid),
-            task_template=plans.template_text("documents", "TASK.md"),
-            breakdown_template=plans.template_text("documents", "BREAKDOWN.md"),
-            context=context(files, workdir, embed=name == "none"),
-        )
-        report = adapter(workdir, prompt, cfg, "define-tasks", wid)
+        report = adapter(workdir, task_prompt(wid, name == "none", workdir), cfg, "gen-task", wid)
         base = workdir / plans.ROOT / wid
         new = sorted(p.name for p in base.iterdir()
-                     if p.is_dir() and plans.NNNN.fullmatch(p.name)
-                     and p.name not in existing and (p / "TASK.md").is_file())
+                     if p.is_dir() and plans.NNNN.fullmatch(p.name) and p.name not in existing)
         copied = {n: {f: (base / n / f).read_text() for f in TASK_FILES
                       if (base / n / f).is_file()} for n in new}
         return {"copied": copied, "report": report.strip()}
 
     result = in_worktree(wid, cfg, work)
-    copied = result.pop("copied")
-    if not copied:
+    tids = keep_tasks(wid, result.pop("copied"))
+    if not tids:
         raise Fail(f"the agent wrote no new task under {plans.ROOT / wid}/\n{result['report'][-800:]}")
 
-    tasks, dropped = plans.listed(wid)
-    for nnnn, documents in copied.items():
-        for filename, text in documents.items():
-            path = plans.ROOT / wid / nnnn / filename
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text)
-        if nnnn not in tasks and nnnn not in dropped:
-            plans.add_task_line(wid, f"{nnnn}  {plans.task_title(f'{wid}/{nnnn}')}")
-
-    paths = [str(plan_file), *(str(plans.ROOT / wid / n) for n in copied)]
+    paths = [str(plan_file), *(str(plans.ROOT / tid) for tid in tids)]
     git.run("add", "--", *paths)
     git.run("commit", "-q", "-m", f"{wid} define tasks", "--", *paths)
-    result.update(workplan=wid, agent=name, tasks=[f"{wid}/{n}" for n in copied],
+    result.update(workplan=wid, agent=name, tasks=tids,
                   commit=git.run("log", "-1", "--format=%h %s"))
     return result
+
+
+def add_tasks(wid: str, reply: str) -> dict:
+    """A gen-task reply in the none agent's form, pasted from a chat: its
+    new tasks are written and listed, as gen-task writes them. Nothing is
+    committed."""
+    if not ops.editable(wid):
+        raise Fail(f"{wid} is editable only on {plans.branch_of(wid)}")
+    _need_plan(wid)
+    documents: dict[str, dict[str, str]] = {}
+    for path, text in parse_files(reply, wid).items():
+        nnnn, filename = path.split("/")[-2:]
+        documents.setdefault(nnnn, {})[filename] = text
+    tids = keep_tasks(wid, documents)
+    if not tids:
+        raise Fail(f"the reply holds no new task; each starts with a line "
+                   f"'===== {plans.ROOT}/{wid}/<nnnn>/TASK.md ====='")
+    return {"workplan": wid, "tasks": tids}
 
 
 def _need_plan(wid: str) -> Path:
@@ -318,7 +401,7 @@ def run_none(workdir: Path, prompt: str, cfg: dict, action: str, target: str) ->
     agent = cfg["agent"]
     messages = [{"role": "user", "content": prompt}]
     attempts = max(1, int(agent["attempts"]))
-    use = use_patch if action == "produce-patch" else use_files
+    use = use_patch if action == "gen-patch" else use_files
     error = ""
 
     for _ in range(attempts):
@@ -353,7 +436,7 @@ def run_command(workdir: Path, prompt: str, cfg: dict, action: str, target: str,
         stdin = None
 
     env = {**os.environ, "WORKPLAN_ACTION": action, "WORKPLAN_TARGET": target}
-    if action == "produce-patch":
+    if action == "gen-patch":
         env["WORKPLAN_COMMIT_MSG"] = str(plans.ROOT / target / "COMMIT_MSG")
     try:
         result = subprocess.run(argv, cwd=workdir, input=stdin, capture_output=True, text=True,

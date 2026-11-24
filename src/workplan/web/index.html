@@ -29,7 +29,10 @@
       <h1 id="title"></h1>
       <div class="actions">
         <button id="open-plan" class="quiet">WORKPLAN.md</button>
-        <button id="define-tasks">Define tasks</button>
+        <button id="add-task" class="quiet">New task</button>
+        <button id="task-prompt" class="quiet">Copy prompt</button>
+        <button id="task-reply" class="quiet">Paste reply</button>
+        <button id="gen-task">Gen tasks</button>
         <button id="merge">Merge</button>
       </div>
     </div>
@@ -77,6 +80,48 @@
   </form>
 </dialog>
 
+<dialog id="task-dialog">
+  <form method="dialog" id="task-form">
+    <h2>New task</h2>
+    <label>Title
+      <input name="title" required autocomplete="off"
+             placeholder="Install the CLI with pipx or uv tool">
+    </label>
+    <label>Depends on
+      <input name="depend" autocomplete="off" placeholder="0000, 0002">
+    </label>
+    <p class="hint">Task numbers, separated by commas; leave empty for none.
+      The task gets the next number, and its TASK.md opens for editing.</p>
+    <div class="actions">
+      <button value="cancel" formnovalidate class="quiet">Cancel</button>
+      <button value="add">Add task</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="reply-dialog">
+  <form method="dialog" id="reply-form">
+    <h2 id="reply-title">Paste reply</h2>
+    <p class="hint" id="reply-hint"></p>
+    <textarea name="reply" rows="16" class="editor" required></textarea>
+    <div class="actions">
+      <button value="cancel" formnovalidate class="quiet">Cancel</button>
+      <button value="use">Use reply</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm-dialog">
+  <form method="dialog">
+    <h2 id="confirm-title"></h2>
+    <p class="hint" id="confirm-text"></p>
+    <div class="actions">
+      <button value="cancel" class="quiet">Cancel</button>
+      <button value="ok" id="confirm-ok"></button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="merge-dialog">
   <form method="dialog" id="merge-form">
     <h2>Merge into master</h2>
@@ -90,6 +135,7 @@
   </form>
 </dialog>
 
+<script src="/api.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

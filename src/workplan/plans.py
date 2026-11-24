@@ -182,19 +182,55 @@ def read_ref(ref: str, path: Path | str) -> str:
     return git.run("show", f"{ref}:{path}", strip=False)
 
 
-def add_task_line(wid: str, line: str) -> None:
-    """Add a task line at the end of WORKPLAN.md's Tasks section."""
+def section_span(text: str, name: str) -> tuple[int, int] | None:
+    """Where a '## ' section's body starts and ends, by lower-cased name."""
+    matches = list(HEADING.finditer(text))
+    i = next((i for i, m in enumerate(matches) if m[1].strip().lower() == name), None)
+    if i is None:
+        return None
+    return matches[i].end(), (matches[i + 1].start() if i + 1 < len(matches) else len(text))
+
+
+def add_task_line(wid: str, line: str, section: str = "tasks") -> None:
+    """Add a task line at the end of a WORKPLAN.md section, Tasks unless
+    another is named; a Dropped section is added when there is none."""
     path = plan_path(wid)
     text = path.read_text()
-    matches = list(HEADING.finditer(text))
-    tasks = next((i for i, m in enumerate(matches) if m[1].strip().lower() == "tasks"), None)
-    if tasks is None:
-        raise Fail(f"{path}: no '## Tasks' section")
-    end = matches[tasks + 1].start() if tasks + 1 < len(matches) else len(text)
-    body = text[matches[tasks].end():end].strip("\n")
+    span = section_span(text, section)
+    if span is None:
+        if section == "tasks":
+            raise Fail(f"{path}: no '## Tasks' section")
+        text = text.rstrip("\n") + f"\n\n## {section.title()}\n"
+        span = section_span(text, section)
+    start, end = span
+    body = text[start:end].strip("\n")
     body = f"{body}\n\n{line}" if body else line
-    result = text[:matches[tasks].end()] + "\n\n" + body + "\n\n" + text[end:].lstrip("\n")
+    result = text[:start] + "\n\n" + body + "\n\n" + text[end:].lstrip("\n")
     path.write_text(result.rstrip("\n") + "\n")
+
+
+def move_task_line(wid: str, nnnn: str, section: str) -> None:
+    """Move a task's entry, its line and the indented lines after it,
+    from the Tasks section to another."""
+    path = plan_path(wid)
+    text = path.read_text()
+    span = section_span(text, "tasks")
+    if span is None:
+        raise Fail(f"{path}: no '## Tasks' section")
+    start, end = span
+    lines = text[start:end].split("\n")
+    first = next((i for i, l in enumerate(lines) if re.match(rf"{nnnn}\s", l)), None)
+    if first is None:
+        raise Fail(f"{path}: no line for {nnnn} under Tasks")
+    last = first + 1
+    while last < len(lines) and lines[last][:1].isspace() and lines[last].strip():
+        last += 1
+    entry = "\n".join(lines[first:last])
+    body = "\n".join(lines[:first] + lines[last:])
+    body = re.sub(r"\n{3,}", "\n\n", body).strip("\n")
+    rebuilt = text[:start] + ("\n\n" + body if body else "") + "\n\n" + text[end:].lstrip("\n")
+    path.write_text(rebuilt.rstrip("\n") + "\n")
+    add_task_line(wid, entry, section)
 
 
 # ---------------------------------------------------------------------------

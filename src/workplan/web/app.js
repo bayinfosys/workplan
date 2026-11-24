@@ -1,4 +1,4 @@
-// workplan serve: the board. Talks to the server's /api; loads nothing else.
+// workplan serve: the board. Calls the server through api.js; loads nothing else.
 
 "use strict";
 
@@ -12,7 +12,6 @@ const PATCHED = ["waiting", "stale", "development", "testing"];
 const DOCS = [["Task", "TASK.md"], ["Breakdown", "BREAKDOWN.md"], ["Notes", "NOTES.md"]];
 const REFRESH_MS = 5000;
 
-const token = new URLSearchParams(location.search).get("token") || "";
 const view = {
   workplans: [],
   selected: null,       // workplan id
@@ -26,19 +25,7 @@ const view = {
 const $ = (id) => document.getElementById(id);
 
 // ---------------------------------------------------------------------------
-// the API
-
-async function api(path, body) {
-  const response = await fetch(path, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {"X-Workplan-Token": token, "Content-Type": "application/json"},
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  let reply = {};
-  try { reply = await response.json(); } catch (e) { reply = {error: response.statusText}; }
-  if (!response.ok) throw new Error(reply.error || response.statusText);
-  return reply.data;
-}
+// running commands
 
 function say(text, kind) {
   const line = $("line");
@@ -46,13 +33,14 @@ function say(text, kind) {
   line.className = "line" + (kind ? " " + kind : "");
 }
 
-async function operation(label, body, done) {
+async function operation(label, call, done) {
   if (view.busy) return;
   view.busy = true;
   say(label + "...", "busy");
   render();
+  let data = null;
   try {
-    const data = await api("/api/run", body);
+    data = await call();
     say(done(data));
   } catch (e) {
     say(e.message, "error");
@@ -60,6 +48,7 @@ async function operation(label, body, done) {
     view.busy = false;
     await refresh();
   }
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,14 +139,14 @@ function diff(text) {
 // loading
 
 async function refresh() {
-  if (!token) return;
+  if (!api.token) return;
   try {
-    view.workplans = await api("/api/workplans");
+    view.workplans = await api.listWorkplan();
     if (!view.workplans.some((w) => w.id === view.selected)) {
       const current = view.workplans.find((w) => w.current);
       view.selected = current ? current.id : (view.workplans.length ? view.workplans[view.workplans.length - 1].id : null);
     }
-    view.status = view.selected ? await api("/api/status?id=" + encodeURIComponent(view.selected)) : null;
+    view.status = view.selected ? await api.listTask(view.selected) : null;
   } catch (e) {
     say(e.message, "error");
   }
@@ -196,7 +185,7 @@ function renderPlan() {
   const s = view.status;
   $("plan").hidden = !s;
   if (!s) {
-    $("board").innerHTML = token
+    $("board").innerHTML = api.token
       ? '<p class="notice">No workplans yet. Choose New workplan to start one.</p>'
       : "";
     return;
@@ -215,9 +204,13 @@ function renderPlan() {
   const states = s.tasks.map((t) => t.state);
   const finished = states.length > 0 && states.every((x) => ["complete", "dropped", "merged"].includes(x))
     && states.includes("complete");
-  $("define-tasks").hidden = !s.editable;
+  $("gen-task").hidden = !s.editable;
+  for (const id of ["add-task", "task-prompt", "task-reply"]) {
+    $(id).hidden = !s.editable;
+    $(id).disabled = view.busy;
+  }
   $("merge").hidden = !s.editable;
-  $("define-tasks").disabled = view.busy;
+  $("gen-task").disabled = view.busy;
   $("merge").disabled = view.busy || !finished;
   $("merge").title = finished ? "" : "Every task must be complete or dropped first.";
 }
@@ -229,7 +222,7 @@ function renderBoard() {
   board.innerHTML = "";
   if (!s.tasks.length) {
     board.innerHTML = '<p class="notice">No tasks yet. ' + (s.editable
-      ? "Define tasks has the agent write them from WORKPLAN.md."
+      ? "Gen tasks has the agent write them from WORKPLAN.md."
       : "None are defined on " + esc(s.branch) + ".") + "</p>";
     return;
   }
@@ -288,7 +281,10 @@ function documentName() {
   return view.panel.kind === "plan" ? "WORKPLAN.md" : view.panel.task.split("/")[1] + "/" + view.tab;
 }
 
+let panelDraw = 0;   // only the latest drawing of the panel writes to it
+
 async function renderPanel() {
+  const draw = ++panelDraw;
   const panel = view.panel;
   const s = view.status;
   const t = panel.kind === "task" ? task(panel.task) : null;
@@ -319,11 +315,13 @@ async function renderPanel() {
   const doc = $("doc");
   try {
     if (view.tab === "patch") {
-      const data = await api("/api/diff?task=" + encodeURIComponent(t.id));
+      const data = await api.showPatch(t.id);
+      if (draw !== panelDraw) return;
       doc.innerHTML = diff(data.text);
       return;
     }
-    const data = await api("/api/document?id=" + encodeURIComponent(s.workplan) + "&name=" + encodeURIComponent(documentName()));
+    const data = await readDocument();
+    if (draw !== panelDraw) return;
     doc.innerHTML = data.text.trim() ? markdown(data.text)
       : '<p class="placeholder">' + esc(view.tab) + " is empty." + (data.editable ? " Edit it to start one." : "") + "</p>";
     if (data.editable) {
@@ -332,8 +330,18 @@ async function renderPanel() {
       docActions.append(edit);
     }
   } catch (e) {
+    if (draw !== panelDraw) return;
     doc.innerHTML = '<p class="placeholder">' + esc(e.message) + "</p>";
   }
+}
+
+async function readDocument() {
+  if (view.panel.kind === "plan") {
+    const data = await api.showWorkplan(view.status.workplan);
+    return {text: data.text, editable: data.editable};
+  }
+  const data = await api.showTask(view.panel.task);
+  return {text: data.documents[view.tab] || "", editable: data.editable};
 }
 
 function renderTaskActions(t) {
@@ -344,18 +352,41 @@ function renderTaskActions(t) {
   const number = id.split("/")[1];
   const offer = (label, op, states, done) => {
     if (!states.includes(t.state)) return;
-    const b = button(label, false, () => operation(label + " " + number, {op, task: id}, done));
+    const b = button(label, false, () => operation(label + " " + number, () => op(id), done));
     b.disabled = view.busy;
     actions.append(b);
   };
-  offer("Produce patch", "produce-patch", ["refinement", "stale", "development"],
-        (d) => "Patch produced for " + number + ": " + d.commit_msg);
-  offer("Apply", "apply", ["development"], () => "Applied " + number + ".");
-  offer("Accept", "accept", ["development", "testing"], (d) => "Accepted: " + d.commit);
-  offer("Reject", "reject", ["testing"], () => "Rejected " + number + ".");
+  offer("Gen patch", api.genPatch, ["refinement", "stale", "development"],
+        (d) => "Patch generated for " + number + ": " + d.commit_msg);
+  if (["refinement", "stale", "development"].includes(t.state)) {
+    const copy = button("Copy prompt", true, () => copyPrompt(() => api.genPatchPrompt(id)));
+    const paste = button("Paste reply", true, () => askReply("patch", id));
+    copy.disabled = paste.disabled = view.busy;
+    actions.prepend(copy, paste);
+  }
+  offer("Apply", api.applyPatch, ["development"], () => "Applied " + number + ".");
+  offer("Accept", api.acceptPatch, ["development", "testing"], (d) => "Accepted: " + d.commit);
+  offer("Reject", api.rejectPatch, ["testing"], () => "Rejected " + number + ".");
+  const drop = (label, states, text, call, done) => {
+    if (!states.includes(t.state)) return;
+    const b = button(label, true, async () => {
+      if (await ask(label + " " + number + "?", text, label)) {
+        operation(label + " " + number, () => call(id), done);
+      }
+    });
+    b.disabled = view.busy;
+    actions.prepend(b);
+  };
+  drop("Drop patch", ["waiting", "stale", "development"],
+       "Deletes output.patch and COMMIT_MSG. The task stays as it is.",
+       api.dropPatch, () => "Dropped the patch for " + number + ".");
+  drop("Drop task", ["unspecified", "refinement", "waiting", "stale", "development"],
+       "Moves the task to Dropped in WORKPLAN.md and commits WORKPLAN.md. Its files stay.",
+       api.dropTask, (d) => "Dropped: " + d.commit);
 }
 
 function startEditing(text) {
+  panelDraw++;          // a drawing still loading must not replace the editor
   view.editing = true;
   const editor = $("editor");
   editor.value = text;
@@ -374,7 +405,9 @@ function startEditing(text) {
 async function save() {
   const name = documentName();
   try {
-    await api("/api/document", {id: view.status.workplan, name, text: $("editor").value});
+    const text = $("editor").value;
+    if (view.panel.kind === "plan") await api.editWorkplan(view.status.workplan, text);
+    else await api.editTask(view.panel.task, view.tab, text);
     say("Saved " + name + ".");
     view.editing = false;
     await refresh();
@@ -406,16 +439,85 @@ $("plan-dialog").addEventListener("close", () => {
   const form = $("plan-form");
   const name = form.elements.name.value.trim();
   const goal = form.elements.goal.value.trim();
-  operation("Creating workplan " + name, {op: "plan", name, goal}, (d) => {
+  operation("Creating workplan " + name, () => api.addWorkplan(name, goal), (d) => {
     view.selected = d.workplan;
     return "Created " + d.workplan + " on " + d.branch + ".";
   });
 });
 
+function newTask() {
+  $("task-form").reset();
+  $("task-dialog").showModal();
+}
+
+$("task-dialog").addEventListener("close", async () => {
+  if ($("task-dialog").returnValue !== "add") return;
+  const form = $("task-form");
+  const title = form.elements.title.value.trim();
+  const depend = form.elements.depend.value.split(",").map((d) => d.trim()).filter(Boolean);
+  const id = view.status.workplan;
+  const added = await operation("Adding task", () => api.addTask(id, title, depend),
+    (d) => "Added " + d.task + ".");
+  if (!added) return;
+  openTask(added.task);
+  const data = await api.showTask(added.task);
+  startEditing(data.documents["TASK.md"]);
+});
+
+// ---------------------------------------------------------------------------
+// manual mode: a prompt for any chat, and its reply pasted back
+
+async function copyPrompt(load) {
+  try {
+    const data = await load();
+    await navigator.clipboard.writeText(data.prompt);
+    say("Prompt copied: paste it into a chat, then paste the reply back here.");
+  } catch (e) {
+    say(e.message, "error");
+  }
+}
+
+function ask(title, text, ok) {
+  $("confirm-title").textContent = title;
+  $("confirm-text").textContent = text;
+  $("confirm-ok").textContent = ok;
+  const dialog = $("confirm-dialog");
+  dialog.returnValue = "";
+  dialog.showModal();
+  return new Promise((resolve) =>
+    dialog.addEventListener("close", () => resolve(dialog.returnValue === "ok"), {once: true}));
+}
+
+let replyFor = null;   // {kind: "patch", task} or {kind: "tasks", workplan}
+
+function askReply(kind, target) {
+  replyFor = kind === "patch" ? {kind, task: target} : {kind, workplan: target};
+  $("reply-form").reset();
+  $("reply-title").textContent = kind === "patch" ? "Paste reply for " + target.split("/")[1]
+    : "Paste reply with tasks";
+  $("reply-hint").textContent = kind === "patch"
+    ? "The chat's whole reply: the commit message line and the diff."
+    : "The chat's whole reply: each file after its ===== path ===== line.";
+  $("reply-dialog").showModal();
+}
+
+$("reply-dialog").addEventListener("close", () => {
+  if ($("reply-dialog").returnValue !== "use" || !replyFor) return;
+  const reply = $("reply-form").elements.reply.value;
+  const target = replyFor;
+  if (target.kind === "patch") {
+    operation("Using the reply", () => api.addPatch(target.task, reply),
+      (d) => "Patch from the reply for " + target.task.split("/")[1] + ": " + d.commit_msg);
+  } else {
+    operation("Using the reply", () => api.addTaskReply(target.workplan, reply),
+      (d) => "Added " + d.tasks.length + " task(s) from the reply.");
+  }
+});
+
 async function startMerge() {
   try {
-    const data = await api("/api/merge-message?id=" + encodeURIComponent(view.status.workplan));
-    $("merge-form").elements.message.value = data.text;
+    const data = await api.mergeMessage(view.status.workplan);
+    $("merge-form").elements.message.value = data.message;
     $("merge-dialog").showModal();
   } catch (e) {
     say(e.message, "error");
@@ -425,7 +527,8 @@ async function startMerge() {
 $("merge-dialog").addEventListener("close", () => {
   if ($("merge-dialog").returnValue !== "merge") return;
   const message = $("merge-form").elements.message.value;
-  operation("Merging " + view.status.workplan, {op: "merge", id: view.status.workplan, message},
+  const id = view.status.workplan;
+  operation("Merging " + id, () => api.mergeWorkplan(id, message),
     (d) => "Merged: " + d.commit + ". Next: " + d.next.join("; "));
 });
 
@@ -439,16 +542,22 @@ $("picker").addEventListener("change", (e) => {
 });
 $("new-plan").addEventListener("click", newPlan);
 $("open-plan").addEventListener("click", openPlan);
+$("add-task").addEventListener("click", newTask);
+$("task-prompt").addEventListener("click", () =>
+  copyPrompt(() => api.genTaskPrompt(view.status.workplan)));
+$("task-reply").addEventListener("click", () => askReply("tasks", view.status.workplan));
 $("panel-close").addEventListener("click", closePanel);
 $("merge").addEventListener("click", startMerge);
-$("define-tasks").addEventListener("click", () =>
-  operation("Defining tasks", {op: "define-tasks", id: view.status.workplan},
-    (d) => "Defined " + d.tasks.length + " task(s); committed " + d.commit + "."));
+$("gen-task").addEventListener("click", () => {
+  const id = view.status.workplan;
+  operation("Generating tasks", () => api.genTask(id),
+    (d) => "Generated " + d.tasks.length + " task(s); committed " + d.commit + ".");
+});
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && view.panel && !view.editing && !document.querySelector("dialog[open]")) closePanel();
 });
 
-if (!token) {
+if (!api.token) {
   $("no-token").hidden = false;
 } else {
   refresh();

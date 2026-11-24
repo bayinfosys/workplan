@@ -43,7 +43,7 @@ class TwoClones(unittest.TestCase):
         self.assertEqual(self.states(bob, wid), {"0000": "refinement", "0001": "refinement"})
 
         # Alice generates a patch: a working file, so Bob does not see it.
-        self.alice.wp("produce-patch", "0000", env=self.env)
+        self.alice.wp("gen-patch", "0000", env=self.env)
         self.assertEqual(self.states(self.alice, wid)["0000"], "development")
 
         # Bob claims 0001 on a task branch and pushes it.
@@ -54,7 +54,7 @@ class TwoClones(unittest.TestCase):
         self.assertIn(f"origin/workplan/{wid}/task/0001", claimed)
 
         # Alice accepts 0000 and pushes; Bob sees it complete after pulling.
-        self.alice.wp("accept", "0000")
+        self.alice.wp("accept-patch", "0000")
         self.alice.git("push", "-q", "origin", f"workplan/{wid}/definition")
         bob.git("switch", "-q", f"workplan/{wid}/definition")
         bob.git("pull", "-q", "--rebase", "origin", f"workplan/{wid}/definition")
@@ -68,7 +68,7 @@ class TwoClones(unittest.TestCase):
         bob.git("push", "-q", "origin", f"workplan/{wid}/definition")
 
         self.alice.git("pull", "-q", "--rebase", "origin", f"workplan/{wid}/definition")
-        self.alice.wp("merge")
+        self.alice.wp("merge-workplan")
         self.alice.git("push", "-q", "origin", "master")
 
         bob.git("switch", "-q", "master")
@@ -77,8 +77,8 @@ class TwoClones(unittest.TestCase):
 
     def test_workplan_on_another_branch(self):
         wid = planned(self.alice, tasks=2, agent=self.agent)
-        self.alice.wp("produce-patch", "0000", env=self.env)
-        self.alice.wp("accept", "0000")
+        self.alice.wp("gen-patch", "0000", env=self.env)
+        self.alice.wp("accept-patch", "0000")
         self.alice.git("push", "-q", "origin", "master", f"workplan/{wid}/definition")
 
         bob = self.clone("bob")

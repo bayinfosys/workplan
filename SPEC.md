@@ -167,17 +167,20 @@ and `project`.
 | Template | Values |
 |---|---|
 | documents/WORKPLAN.md | `$id`, `$title`, `$goal` |
-| documents/TASK.md | `$id`, `$title`, `$depends` |
+| documents/TASK.md | `$id`, `$title`, `$depends`, `$change` |
 | documents/BREAKDOWN.md | `$id`, `$title` |
 | documents/NOTES.md | `$id`, `$title` |
 | documents/SQUASH_COMMIT_MSG | `$id`, `$title`, `$goal`, `$tasks`, `$path` |
-| prompts/define-tasks.md | `$id`, `$next`, `$context`, `$task_template`, `$breakdown_template` |
-| prompts/define-tasks-none.md | as define-tasks.md |
-| prompts/produce-patch.md | `$id`, `$workplan`, `$context`, `$commit_msg` |
-| prompts/produce-patch-none.md | as produce-patch.md |
+| prompts/gen-task.md | `$id`, `$next`, `$context`, `$task_template`, `$breakdown_template` |
+| prompts/gen-task-none.md | as gen-task.md |
+| prompts/gen-patch.md | `$id`, `$workplan`, `$context`, `$commit_msg` |
+| prompts/gen-patch-none.md | as gen-patch.md |
 | prompts/route.md | `$branch`, `$parents`, `$subject`, `$workplan`, `$paths` |
 
 Text in angle brackets in a template is for the author to replace.
+
+`workplan add-task TITLE [--depend N] [-m CHANGE]` writes a new task
+this way and adds its line to WORKPLAN.md.
 
 By hand, a new task:
 
@@ -185,7 +188,7 @@ By hand, a new task:
 n=0003; w=workplans/2026-11-24-one-package
 mkdir $w/$n
 cp <templates>/documents/TASK.md <templates>/documents/BREAKDOWN.md $w/$n/
-$EDITOR $w/$n/TASK.md $w/$n/BREAKDOWN.md     # replace $title, $depends
+$EDITOR $w/$n/TASK.md $w/$n/BREAKDOWN.md     # replace $title, $depends, $change
 $EDITOR $w/WORKPLAN.md                      # add "0003  <title>" under Tasks
 ```
 
@@ -357,13 +360,13 @@ table that has targets:
 |---|---|---|
 | `complete` | a commit on master with a `Workplan:` trailer | the workplan |
 | `review` | code changed in a commit whose subject is a task id | the task |
-| `produce-patch` | TASK.md or BREAKDOWN.md changed | each task |
-| `define-tasks` | WORKPLAN.md changed | the workplan |
+| `gen-patch` | TASK.md or BREAKDOWN.md changed | each task |
+| `gen-task` | WORKPLAN.md changed | the workplan |
 | `none` | anything else, such as a change to the protocol's files | -- |
 
 A task's commit, which also carries its files and WORKPLAN.md, leads
 to `review`; the commit that defines the tasks leads to
-`produce-patch`. A `post-commit` hook can run each step automatically.
+`gen-patch`. A `post-commit` hook can run each step automatically.
 
 By hand:
 

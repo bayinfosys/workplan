@@ -22,6 +22,7 @@ GITIGNORE = (
 
 DOCUMENT = re.compile(r"WORKPLAN\.md|\d{4}/(?:TASK|BREAKDOWN|NOTES)\.md")
 
+CHANGE_PLACEHOLDER = "<The change, in a sentence or two.>"
 GOAL_PLACEHOLDER = "<What is true when this workplan reaches master, in a few sentences.>"
 
 HOOK_MARK = "# installed by workplan"
@@ -230,6 +231,77 @@ def save_document(wid: str, name: str, text: str) -> dict:
     return {"saved": str(path)}
 
 
+def add_task(wid: str, title: str, depends: list[str] | None = None,
+             change: str | None = None) -> dict:
+    """The next task of the editable workplan: TASK.md and BREAKDOWN.md
+    from their templates, and its line in WORKPLAN.md. Nothing is
+    committed."""
+    if not editable(wid):
+        raise Fail(f"{wid} is editable only on {plans.branch_of(wid)}")
+    if not plans.plan_path(wid).is_file():
+        raise Fail(f"{plans.plan_path(wid)}: not found")
+    title = " ".join((title or "").split())
+    if not title:
+        raise Fail("a task needs a title")
+
+    tasks, dropped = plans.listed(wid)
+    known = set(tasks) | set(dropped) | set(plans.task_dirs(wid))
+    numbers = []
+    for dep in depends or []:
+        n = dep.split("/")[-1]
+        if not plans.NNNN.fullmatch(n) or n not in known:
+            raise Fail(f"{dep}: no such task in {wid}")
+        numbers.append(n)
+
+    nnnn = plans.next_number(wid)
+    tid = f"{wid}/{nnnn}"
+    directory = plans.ROOT / tid
+    directory.mkdir(parents=True)
+    values = {"id": tid, "title": title}
+    (directory / "TASK.md").write_text(plans.render(
+        "documents", "TASK.md", **values, depends=", ".join(numbers) or "none",
+        change=" ".join(change.split()) if change else CHANGE_PLACEHOLDER))
+    (directory / "BREAKDOWN.md").write_text(plans.render("documents", "BREAKDOWN.md", **values))
+    plans.add_task_line(wid, f"{nnnn}  {title}")
+    return {"task": tid, "created": [str(directory / "TASK.md"), str(directory / "BREAKDOWN.md")],
+            "listed": str(plans.plan_path(wid))}
+
+
+def drop_task(task: str, master: str) -> dict:
+    """Move a task from Tasks to Dropped in WORKPLAN.md, and commit
+    WORKPLAN.md as '<id> drop <nnnn>'."""
+    tid = plans.task_id(task)
+    wid, nnnn = tid.split("/")
+    if not editable(wid):
+        raise Fail(f"{wid} is editable only on {plans.branch_of(wid)}")
+    name, detail = state(tid, master)
+    if name in ("merged", "complete"):
+        raise Fail(f"{tid} is {name}: {detail}")
+    if name == "dropped":
+        raise Fail(f"{tid} is dropped already")
+    plans.move_task_line(wid, nnnn, "dropped")
+    path = str(plans.plan_path(wid))
+    git.run("commit", "-q", "-m", f"{wid} drop {nnnn}", "--", path)
+    return {"task": tid, "commit": git.run("log", "-1", "--format=%h %s")}
+
+
+def edit_document(wid: str, name: str) -> dict:
+    """Open WORKPLAN.md or a task file of the editable workplan in the
+    editor git uses. Nothing is committed."""
+    if not plans.ID.fullmatch(wid) or not DOCUMENT.fullmatch(name):
+        raise Fail(f"{wid}/{name}: not a workplan document")
+    if not editable(wid):
+        raise Fail(f"{wid} is editable only on {plans.branch_of(wid)}")
+    path = plans.ROOT / wid / name
+    if not path.parent.is_dir():
+        raise Fail(f"{path.parent}: no such task")
+    existed = path.exists()
+    git.edit(path)
+    if not existed and path.exists() and not path.read_text().strip():
+        path.unlink()
+    return {"saved": str(path)}
+
+
 # ---------------------------------------------------------------------------
 # the patch loop
 # ---------------------------------------------------------------------------
@@ -264,7 +336,7 @@ def accept(task: str, master: str) -> str:
     msg = _need(plans.ROOT / tid / "COMMIT_MSG")
 
     if git.branch() == master:
-        raise Fail(f"HEAD is {master}; accept commits on the workplan branch")
+        raise Fail(f"HEAD is {master}; accept-patch commits on the workplan branch")
     lines = msg.read_text().strip().splitlines()
     if len(lines) != 1 or not lines[0].startswith(f"{tid} "):
         raise Fail(f"{msg}: one line, starting '{tid} '")
@@ -277,6 +349,20 @@ def accept(task: str, master: str) -> str:
     git.run("add", "--", str(plans.ROOT / tid), str(plans.plan_path(wid)))
     git.run("commit", "-q", "-F", str(msg))
     return git.run("log", "-1", "--format=%h %s")
+
+
+def drop_patch(task: str) -> dict:
+    """Delete an unapplied patch and its COMMIT_MSG."""
+    tid, patch = _patch(task)
+    if patch_applied(patch):
+        raise Fail(f"{patch}: applied; reject-patch takes it out first")
+    removed = [str(patch)]
+    patch.unlink()
+    msg = plans.ROOT / tid / "COMMIT_MSG"
+    if msg.exists():
+        msg.unlink()
+        removed.append(str(msg))
+    return {"task": tid, "removed": removed}
 
 
 def reject(task: str) -> str:

@@ -1,6 +1,6 @@
 # $title
 
-<The change, in a sentence or two.>
+$change
 
 Effects:
 

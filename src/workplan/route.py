@@ -5,7 +5,7 @@ rules, the first of ACTIONS that has targets, or from a model when
 route.classifier is "llm", falling back to the rules when the model's
 answer is not an action with targets.
 
-define-tasks and produce-patch are also the names of the commands that
+gen-task and gen-patch are also the names of the commands that
 carry them out.
 """
 
@@ -17,7 +17,7 @@ import sys
 from workplan import git, llm, plans
 from workplan.git import Fail
 
-ACTIONS = ("complete", "review", "produce-patch", "define-tasks", "none")
+ACTIONS = ("complete", "review", "gen-patch", "gen-task", "none")
 
 PLAN_PATH = re.compile(r"^workplans/([^/]+)/WORKPLAN\.md$")
 TASK_PATH = re.compile(r"^workplans/([^/]+)/(\d{4})/(?:TASK|BREAKDOWN)\.md$")
@@ -56,10 +56,10 @@ def candidates(f: dict, master: str) -> dict[str, list[str]]:
         found["review"] = [f"{m[1]}/{m[2]}"]
 
     if tids := sorted({f"{m[1]}/{m[2]}" for p in f["paths"] if (m := TASK_PATH.match(p))}):
-        found["produce-patch"] = tids
+        found["gen-patch"] = tids
 
     if wids := sorted({m[1] for p in f["paths"] if (m := PLAN_PATH.match(p))}):
-        found["define-tasks"] = wids
+        found["gen-task"] = wids
 
     return found
 
