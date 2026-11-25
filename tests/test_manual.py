@@ -72,6 +72,21 @@ class Manual(unittest.TestCase):
             self.assertEqual(self.repo.read(f"workplans/{wid}/0000/output.patch").count("```"), 2)
             self.assertEqual(self.state("0000"), "development")
 
+    def test_add_patch_under_workplans(self):
+        wid = planned(self.repo, tasks=2)
+        plan = f"workplans/{wid}/WORKPLAN.md"
+        self.repo.write(plan, self.repo.read(plan) + "An uncommitted line.\n")
+        notes = f"workplans/{wid}/0001/NOTES.md"
+        diff = (f"--- /dev/null\n+++ b/{notes}\n@@ -0,0 +1 @@\n+# Notes\n")
+        self.repo.wp("add-patch", "0000", input=f"{wid}/0000 Notes\n\n```diff\n{diff}```\n")
+        patch = self.repo.read(f"workplans/{wid}/0000/output.patch")
+        self.assertIn(f"+++ b/{notes}", patch)
+        self.assertNotIn("WORKPLAN.md", patch)
+        self.assertNotIn("COMMIT_MSG", patch)
+        self.repo.wp("accept-patch", "0000")
+        self.assertEqual(self.repo.git("show", "--format=", "--name-only", "HEAD").split(),
+                         sorted([plan, notes]))
+
     def test_add_patch(self):
         wid = planned(self.repo)
         reply = f"Here it is.\n\n{wid}/0000 Say goodbye\n\n```diff\n{DIFF}```\n"

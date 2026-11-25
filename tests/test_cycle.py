@@ -194,14 +194,18 @@ class Cycle(unittest.TestCase):
         self.assertIn("no change", result.stderr)
         self.assertEqual(self.repo.git("worktree", "list").count("\n"), 0)
 
-    def test_gen_patch_excludes_workplans(self):
+    def test_gen_patch_keeps_edits_under_workplans(self):
         wid = planned(self.repo)
+        plan = f"workplans/{wid}/WORKPLAN.md"
+        self.repo.write(plan, self.repo.read(plan) + "An uncommitted line.\n")
         agent = scripted_agent(self.dir, edit=(
             "printf 'goodbye\\n' >> app.txt; echo x >> workplans/PRINCIPLES.md"))
         self.repo.wp("gen-patch", "0000", env=agent_env(agent))
         patch = self.repo.read(f"workplans/{wid}/0000/output.patch")
         self.assertIn("app.txt", patch)
-        self.assertNotIn("PRINCIPLES", patch)
+        self.assertIn("PRINCIPLES", patch)
+        self.assertNotIn("WORKPLAN.md", patch)
+        self.assertNotIn("COMMIT_MSG", patch)
 
     # states --------------------------------------------------------------
 

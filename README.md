@@ -159,14 +159,15 @@ environment only.
 ## Agents
 
 `gen-task` and `gen-patch` create a worktree at the head of
-the workplan branch, copy `workplans/` into it, run `agent.setup`, then
-the agent. The worktree is removed afterwards; the maintainer's own
+the workplan branch, copy `workplans/` into it, run `agent.setup`, stage the worktree and keep
+its tree as the base, then run the agent. The worktree is removed afterwards; the maintainer's own
 tree is never touched.
 
 - `gen-task`: the new task directories the agent wrote under
   `workplans/<id>/` are copied back; existing tasks are left alone.
-- `gen-patch`: the worktree's diff outside `workplans/` becomes
-  output.patch.
+- `gen-patch`: the worktree's diff from the base, output.patch and
+  COMMIT_MSG left out, becomes output.patch; it can change files under
+  `workplans/`, and the documents copied in are not part of it.
 
 | `agent.name` | Runs |
 |---|---|

@@ -6,21 +6,23 @@ workplan owns the worktree for every agent:
    workplan's definition branch, else HEAD
 2. copy workplans/ from this tree, so uncommitted edits are seen
 3. run agent.setup in the worktree
-4. render the prompt and run the adapter in the worktree
-5. bring the result back:
-   gen-patch  the diff outside workplans/ becomes output.patch, and
-              COMMIT_MSG is copied out
+4. stage the worktree and keep its tree: the base of the patch
+5. render the prompt and run the adapter in the worktree
+6. bring the result back:
+   gen-patch  the diff from the base tree, output.patch and COMMIT_MSG
+              left out, becomes output.patch, and COMMIT_MSG is copied
+              out
    gen-task   new task directories under workplans/<id>/ are copied
               back, listed in WORKPLAN.md and committed
-6. remove the worktree
+7. remove the worktree
 
 An adapter is run(workdir, prompt, cfg, action, target) -> str, where
 action is gen-task (target: a workplan id) or gen-patch
 (target: a task id). It changes files in workdir and returns the
 agent's final message:
 
-gen-patch  edit files outside workplans/; write the commit message to
-           workplans/<task id>/COMMIT_MSG
+gen-patch  edit files, under workplans/ only where the task says so;
+           write the commit message to workplans/<task id>/COMMIT_MSG
 gen-task   write workplans/<id>/<nnnn>/TASK.md and BREAKDOWN.md for
            each new task
 
@@ -48,7 +50,8 @@ from workplan import git, llm, ops, plans
 from workplan.git import Fail
 from workplan.plans import commit_for
 
-EXCLUDE = f":(exclude){plans.ROOT}/"
+WORKING = (f":(exclude){plans.ROOT}/*/*/output.patch",      # left out of every patch
+           f":(exclude){plans.ROOT}/*/*/COMMIT_MSG")
 TASK_FILES = ("TASK.md", "BREAKDOWN.md", "NOTES.md")
 FILE_LIMIT = 64 * 1024
 CONTEXT_LIMIT = 256 * 1024
@@ -105,8 +108,11 @@ def adapter_for(cfg: dict):
     return name, ADAPTERS[name]
 
 
-def in_worktree(wid: str, cfg: dict, work: Callable[[Path], dict], setup: bool = True) -> dict:
-    """Run work(workdir) in a fresh worktree of the workplan's branch."""
+def in_worktree(wid: str, cfg: dict, work: Callable[[Path, str], dict],
+                setup: bool = True) -> dict:
+    """Run work(workdir, base) in a fresh worktree of the workplan's
+    branch, where base is the tree of the worktree as the work receives
+    it."""
     branch = plans.branch_of(wid)
     base = branch if git.ref_exists(f"refs/heads/{branch}") else "HEAD"
     workdir = Path(tempfile.mkdtemp(prefix="workplan-"))
@@ -119,7 +125,8 @@ def in_worktree(wid: str, cfg: dict, work: Callable[[Path], dict], setup: bool =
                                     text=True)
             if result.returncode != 0:
                 raise Fail(f"agent.setup failed: {(result.stderr or result.stdout).strip()[-800:]}")
-        result = work(workdir)
+        git.run("add", "-A", cwd=workdir)
+        result = work(workdir, git.run("write-tree", cwd=workdir))
     finally:
         git.ok("worktree", "remove", "--force", str(workdir))
         shutil.rmtree(workdir, ignore_errors=True)
@@ -185,12 +192,13 @@ def patch_task(task: str) -> str:
     return tid
 
 
-def capture(workdir: Path, tid: str, report: str) -> dict:
-    """The worktree's change outside workplans/, and its commit message."""
-    git.run("add", "-A", "--", ".", EXCLUDE, cwd=workdir)
-    patch = git.run("diff", "--cached", "--binary", "--", ".", EXCLUDE, cwd=workdir, strip=False)
+def capture(workdir: Path, tid: str, report: str, base: str) -> dict:
+    """The worktree's change from the base tree, and its commit message."""
+    git.run("add", "-A", "--", ".", *WORKING, cwd=workdir)
+    patch = git.run("diff", "--cached", "--binary", base, "--", ".", *WORKING, cwd=workdir,
+                    strip=False)
     if not patch.strip():
-        raise Fail(f"no change outside {plans.ROOT}/\n{report.strip()[-800:]}")
+        raise Fail(f"no change\n{report.strip()[-800:]}")
     message, note = commit_message(workdir / plans.ROOT / tid / "COMMIT_MSG", tid)
     return {"patch": patch, "commit_msg": message, "note": note, "report": report.strip()}
 
@@ -207,9 +215,9 @@ def gen_patch(task: str, cfg: dict) -> dict:
     tid = patch_task(task)
     name, adapter = adapter_for(cfg)
 
-    def work(workdir: Path) -> dict:
+    def work(workdir: Path, base: str) -> dict:
         report = adapter(workdir, patch_prompt(tid, name == "none", workdir), cfg, "gen-patch", tid)
-        return capture(workdir, tid, report)
+        return capture(workdir, tid, report, base)
 
     result = keep_patch(tid, in_worktree(tid.split("/")[0], cfg, work))
     result["agent"] = name
@@ -222,10 +230,10 @@ def add_patch(task: str, reply: str, cfg: dict) -> dict:
     with its commit message."""
     tid = patch_task(task)
 
-    def work(workdir: Path) -> dict:
+    def work(workdir: Path, base: str) -> dict:
         if error := use_patch(reply, workdir, tid):
             raise Fail(f"the reply cannot be used: {error}")
-        return capture(workdir, tid, "")
+        return capture(workdir, tid, "", base)
 
     result = keep_patch(tid, in_worktree(tid.split("/")[0], cfg, work, setup=False))
     result["agent"] = "a pasted reply"
@@ -278,7 +286,7 @@ def gen_task(arg: str | None, cfg: dict) -> dict:
     name, adapter = adapter_for(cfg)
     existing = set(plans.task_dirs(wid))
 
-    def work(workdir: Path) -> dict:
+    def work(workdir: Path, base: str) -> dict:
         report = adapter(workdir, task_prompt(wid, name == "none", workdir), cfg, "gen-task", wid)
         base = workdir / plans.ROOT / wid
         new = sorted(p.name for p in base.iterdir()

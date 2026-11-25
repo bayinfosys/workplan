@@ -418,13 +418,16 @@ maintainer's tree is untouched:
 
 1. `git worktree add --detach <tmp> workplan/<id>/definition`
 2. copy `workplans/` into the worktree, so uncommitted edits are seen
-3. run any setup the project needs, then the agent, in the worktree
-4. bring the result back:
+3. run any setup the project needs in the worktree, then stage the
+   worktree and keep its tree as the base
+4. run the agent in the worktree
+5. bring the result back:
    - to define tasks: copy the new task directories back, list them in
      WORKPLAN.md, and commit WORKPLAN.md with them
-   - to produce a patch: stage everything outside `workplans/`, save
-     the diff as output.patch, and copy COMMIT_MSG out
-5. `git worktree remove --force <tmp>`
+   - to produce a patch: stage everything but output.patch and
+     COMMIT_MSG, save the diff from the base as output.patch, and copy
+     COMMIT_MSG out
+6. `git worktree remove --force <tmp>`
 
 By hand, producing a patch:
 
@@ -432,9 +435,11 @@ By hand, producing a patch:
 w=2026-11-24-one-package; t=$w/0003
 git worktree add --detach /tmp/wt workplan/$w/definition
 cp -r workplans /tmp/wt/
+git -C /tmp/wt add -A && base=$(git -C /tmp/wt write-tree)
 ( cd /tmp/wt && <agent, or edit by hand> )
-git -C /tmp/wt add -A -- . ':(exclude)workplans/'
-git -C /tmp/wt diff --cached --binary -- . ':(exclude)workplans/' > workplans/$t/output.patch
+x=":(exclude)workplans/*/*/output.patch"; y=":(exclude)workplans/*/*/COMMIT_MSG"
+git -C /tmp/wt add -A -- . "$x" "$y"
+git -C /tmp/wt diff --cached --binary $base -- . "$x" "$y" > workplans/$t/output.patch
 cp /tmp/wt/workplans/$t/COMMIT_MSG workplans/$t/
 git worktree remove --force /tmp/wt
 ```

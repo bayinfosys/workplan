@@ -12,7 +12,7 @@ workplans/PRINCIPLES.md and to the decisions in WORKPLAN.md.
 
 - Edit files in the working directory. Do not commit, stage or change
   branches.
-- Change nothing under workplans/ except the commit message file.
+- Change files under workplans/ only where TASK.md says so.
 - Build the code and run its existing checks where the repository has
   them. Remove temporary and debugging changes before finishing.
 - Leave out any change the task needs outside its scope, such as a
