@@ -41,6 +41,25 @@ class Manual(unittest.TestCase):
         self.assertIn("numbered from 0001 upwards", prompt)
         self.assertEqual(self.repo.git("status", "--porcelain"), before)
 
+    def test_show_patch_heads_the_diff(self):
+        wid = planned(self.repo, tasks=2)
+        self.repo.write(f"workplans/{wid}/0001/output.patch", DIFF)
+        out = self.repo.wp("show-patch", "0001").stdout
+        head, stat, diff = out.split("\n\n", 2)
+        self.assertEqual(head.splitlines(), [
+            f"{wid}/0001  development  Task number 1",
+            "commit   (none)",
+            "depends  0000 refinement",
+        ])
+        self.assertEqual(stat.splitlines()[0].split(), ["app.txt", "|", "1", "+"])
+        self.assertEqual(diff, DIFF)
+
+        self.repo.write(f"workplans/{wid}/0001/COMMIT_MSG", f"{wid}/0001 Say goodbye\n")
+        data = json.loads(self.repo.wp("show-patch", "0001", "--json").stdout)
+        self.assertEqual(data["commit_msg"], f"{wid}/0001 Say goodbye")
+        self.assertEqual(data["depends"], [{"id": f"{wid}/0000", "state": "refinement"}])
+        self.assertEqual(data["text"], DIFF)
+
     def test_add_patch(self):
         wid = planned(self.repo)
         reply = f"Here it is.\n\n{wid}/0000 Say goodbye\n\n```diff\n{DIFF}```\n"

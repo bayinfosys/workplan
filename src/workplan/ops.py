@@ -335,6 +335,23 @@ def diff(task: str) -> str:
     return patch.read_text()
 
 
+def review(task: str, master: str) -> dict:
+    """What a review of a patch needs: the task, its state, its commit
+    message, its dependencies and their states, the stat and the diff."""
+    tid, patch = _patch(task)
+    msg = plans.ROOT / tid / "COMMIT_MSG"
+    name, detail = state(tid, master)
+    return {
+        "task": tid,
+        "state": name,
+        "title": plans.task_title(tid),
+        "commit_msg": msg.read_text().strip() if msg.is_file() else None,
+        "depends": [{"id": d, "state": state(d, master)[0]} for d in plans.depends_on(tid)],
+        "stat": git.run("apply", "--stat", str(patch), strip=False),
+        "text": diff(task),
+    }
+
+
 def accept(task: str, master: str) -> str:
     """Apply the patch if needed, and commit it with COMMIT_MSG, together
     with the task's directory and WORKPLAN.md."""

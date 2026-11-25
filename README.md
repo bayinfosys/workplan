@@ -51,7 +51,8 @@ git push                           # share the plan
 
 workplan gen-patch 0000            # the agent writes output.patch and COMMIT_MSG
 workplan apply-patch 0000          # stage it
-workplan show-patch 0000           # read it, test it
+workplan show-patch 0000           # the task, its commit, its dependencies and the diff:
+                                   # read it, test it
 workplan accept-patch 0000         # commit it with the task's files; or: reject-patch
 workplan status
 
@@ -101,7 +102,7 @@ scripted agent.
 | `gen-task [ID] [--prompt]` | the agent writes each new task's TASK.md and BREAKDOWN.md; they are listed in WORKPLAN.md and committed with it; `--prompt` prints the prompt for a chat |
 | `edit-task NNNN [--doc NAME]` | TASK.md, BREAKDOWN.md or NOTES.md in the editor |
 | `drop-task NNNN` | move the task to `## Dropped` in WORKPLAN.md and commit WORKPLAN.md |
-| `show-patch NNNN` | the staged change if applied, else output.patch |
+| `show-patch NNNN` | the task, its state, COMMIT_MSG, its dependencies and their states, the files changed; then the staged change if applied, else output.patch |
 | `gen-patch NNNN [--prompt]` | the agent writes output.patch and COMMIT_MSG; `--prompt` prints the prompt for a chat |
 | `add-patch NNNN [FILE]` | a reply from a chat, with its commit message line and diff, becomes output.patch and COMMIT_MSG; standard input when FILE is left out |
 | `apply-patch NNNN` | stage the patch in the tree and the index |

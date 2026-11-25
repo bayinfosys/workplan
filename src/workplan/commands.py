@@ -106,6 +106,15 @@ def render_gen_patch(result: dict) -> str:
     return lines(out)
 
 
+def render_patch(data: dict) -> str:
+    depends = ", ".join(f"{d['id'].split('/')[1]} {d['state']}" for d in data["depends"])
+    head = [f"{data['task']}  {data['state']}  {data['title']}",
+            f"commit   {data['commit_msg'] or '(none)'}",
+            f"depends  {depends or 'none'}",
+            "", data["stat"].rstrip()]
+    return lines(head) + "\n\n" + data["text"]
+
+
 def render_merge(result: dict) -> str:
     if "message" in result:
         return result["message"].rstrip()
@@ -238,10 +247,11 @@ def cmd_drop_task(ctx, *, task: TASK):
 # ---------------------------------------------------------------------------
 # patch
 
-@registry.command(help="the patch: the staged change if applied, else output.patch",
-                  render=lambda r: r["text"])
+@registry.command(help="the patch for review: the task, its commit, its dependencies, "
+                       "and the staged change if applied, else output.patch",
+                  render=render_patch)
 def cmd_show_patch(ctx, *, task: TASK):
-    return {"text": ops.diff(task)}
+    return ops.review(task, ctx.master)
 
 
 @registry.command(help="a reply from a chat becomes output.patch and COMMIT_MSG",
