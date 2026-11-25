@@ -328,7 +328,7 @@ def _need_plan(wid: str) -> Path:
 # adapters
 # ---------------------------------------------------------------------------
 
-FENCE = re.compile(r"```(?:diff|patch)?[ \t]*\n(.*?)```", re.S)
+FENCE = re.compile(r"^```(?:diff|patch)?[ \t]*\n(.*?)^```", re.S | re.M)
 FILE_HEADER = re.compile(r"^=====\s*(\S+)\s*=====\s*$", re.M)
 
 

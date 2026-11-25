@@ -60,6 +60,18 @@ class Manual(unittest.TestCase):
         self.assertEqual(data["depends"], [{"id": f"{wid}/0000", "state": "refinement"}])
         self.assertEqual(data["text"], DIFF)
 
+    def test_add_patch_with_fences_in_the_diff(self):
+        wid = planned(self.repo)
+        self.repo.write("README.md", "# App\n\n```\nrun\n```\n")
+        self.repo.commit_all("readme")
+        diff = ("--- a/README.md\n+++ b/README.md\n@@ -2,4 +2,5 @@\n \n ```\n run\n"
+                "+run again\n ```\n")
+        for reply in (f"{wid}/0000 Run again\n\n```diff\n{diff}```\n",
+                      f"{wid}/0000 Run again\n\n{diff}"):
+            self.repo.wp("add-patch", "0000", input=reply)
+            self.assertEqual(self.repo.read(f"workplans/{wid}/0000/output.patch").count("```"), 2)
+            self.assertEqual(self.state("0000"), "development")
+
     def test_add_patch(self):
         wid = planned(self.repo)
         reply = f"Here it is.\n\n{wid}/0000 Say goodbye\n\n```diff\n{DIFF}```\n"
