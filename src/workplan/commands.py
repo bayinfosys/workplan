@@ -115,6 +115,10 @@ def render_patch(data: dict) -> str:
     return lines(head) + "\n\n" + data["text"]
 
 
+def committed(result: dict) -> str:
+    return f"committed {result['commit']}" if result.get("commit") else "nothing to commit"
+
+
 def render_merge(result: dict) -> str:
     if "message" in result:
         return result["message"].rstrip()
@@ -142,8 +146,10 @@ def cmd_show_workplan(ctx, *, workplan: WORKPLAN = None):
     return data
 
 
-@registry.command(help="a workplan on a new branch; the editor opens on WORKPLAN.md",
-                  render=lambda r: f"switched to {r['branch']}\ncreated {r['created']}")
+@registry.command(help="a workplan on a new branch; the editor opens on WORKPLAN.md; "
+                       "it is committed",
+                  render=lambda r: f"switched to {r['branch']}\ncreated {r['created']}\n"
+                  + committed(r))
 def cmd_add_workplan(ctx, *, name: Annotated[str, Positional("NAME", "lower-case words joined by -")],
                      goal: Annotated[str, Flag("the goal; skips the editor", short="-m")] = None):
     if not goal and not ctx.interactive:
@@ -151,8 +157,8 @@ def cmd_add_workplan(ctx, *, name: Annotated[str, Positional("NAME", "lower-case
     return ops.plan(name, ctx.master, goal=goal)
 
 
-@registry.command(help="edit WORKPLAN.md: the editor, or the text given",
-                  render=lambda r: f"saved {r['saved']}")
+@registry.command(help="edit WORKPLAN.md: the editor, or the text given; it is committed",
+                  render=lambda r: f"saved {r['saved']}\n" + committed(r))
 def cmd_edit_workplan(ctx, *, workplan: WORKPLAN = None,
                       text: Annotated[str, Flag("the new text; skips the editor")] = None):
     wid = plans.workplan_id(workplan)
@@ -194,10 +200,11 @@ def cmd_show_task(ctx, *, task: TASK):
     return data
 
 
-@registry.command(help="the next task, from its templates; the editor opens on TASK.md",
-                  render=lambda r: lines(f"added {t}" for t in r["tasks"]) if "tasks" in r
-                  else f"{r['task']}: listed in {r['listed']}\n"
-                  + lines(f"created {p}" for p in r["created"]))
+@registry.command(help="the next task, from its templates; the editor opens on TASK.md; "
+                       "it is committed",
+                  render=lambda r: lines([*(f"added {t}" for t in r["tasks"]), committed(r)])
+                  if "tasks" in r else f"{r['task']}: listed in {r['listed']}\n"
+                  + lines([*(f"created {p}" for p in r["created"]), committed(r)]))
 def cmd_add_task(ctx, *, title: Annotated[str, Positional("TITLE", "the task's title",
                                                          optional=True, many=True)] = None,
                  workplan: Annotated[str, Flag("the workplan; the current one when left out")] = None,
@@ -208,10 +215,7 @@ def cmd_add_task(ctx, *, title: Annotated[str, Positional("TITLE", "the task's t
     wid = plans.workplan_id(workplan)
     if reply is not None:
         return agent.add_tasks(wid, read_reply(ctx, reply))
-    result = ops.add_task(wid, title, depend, change)
-    if change is None and ctx.interactive:
-        git.edit(plans.ROOT / result["task"] / "TASK.md")
-    return result
+    return ops.add_task(wid, title, depend, change, edit=change is None and ctx.interactive)
 
 
 @registry.command(help="the agent writes the tasks; WORKPLAN.md and the tasks are committed",
@@ -223,8 +227,8 @@ def cmd_gen_task(ctx, *, workplan: WORKPLAN = None,
     return agent.gen_task(workplan, ctx.cfg)
 
 
-@registry.command(help="edit a task's document: the editor, or the text given",
-                  render=lambda r: f"saved {r['saved']}",
+@registry.command(help="edit a task's document: the editor, or the text given; it is committed",
+                  render=lambda r: f"saved {r['saved']}\n" + committed(r),
                   method="PUT", route="/api/task/{task}/{doc}")
 def cmd_edit_task(ctx, *, task: TASK,
                   doc: Annotated[str, Flag("TASK.md, BREAKDOWN.md or NOTES.md")] = "TASK.md",

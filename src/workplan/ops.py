@@ -49,6 +49,16 @@ def _need(path: Path) -> Path:
 # init and plan
 # ---------------------------------------------------------------------------
 
+def commit_paths(paths: list[str], message: str) -> str | None:
+    """Commit the paths alone, whatever else is staged; None when they
+    hold no change."""
+    git.run("add", "--", *paths)
+    if git.ok("diff", "--cached", "--quiet", "--", *paths):
+        return None
+    git.run("commit", "-q", "-m", message, "--", *paths)
+    return git.run("log", "-1", "--format=%h %s")
+
+
 def init() -> list[str]:
     """Create workplans/ with its README, principles, backlog, config and
     dispatch script, add the working files to .gitignore, and commit
@@ -83,9 +93,10 @@ def init() -> list[str]:
 
 
 def plan(name: str, master: str, goal: str | None = None, today: str | None = None) -> dict:
-    """A new workplan: WORKPLAN.md from its template, on a new branch
-    from master. With no goal, the editor opens on the rendered template,
-    as git commit does; leaving it unchanged creates nothing."""
+    """A new workplan: WORKPLAN.md from its template, committed as
+    '<id> workplan' on a new branch from master. With no goal, the editor
+    opens on the rendered template, as git commit does; leaving it
+    unchanged creates nothing."""
     if not plans.NAME.fullmatch(name):
         raise Fail(f"{name}: a workplan name is lower-case words joined by '-'")
     wid = f"{today or datetime.date.today().isoformat()}-{name}"
@@ -114,7 +125,8 @@ def plan(name: str, master: str, goal: str | None = None, today: str | None = No
     path = plans.plan_path(wid)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
-    return {"workplan": wid, "branch": branch, "created": str(path)}
+    return {"workplan": wid, "branch": branch, "created": str(path),
+            "commit": commit_paths([str(path)], f"{wid} workplan")}
 
 
 # ---------------------------------------------------------------------------
@@ -225,8 +237,8 @@ def document(wid: str, name: str) -> dict:
 
 
 def save_document(wid: str, name: str, text: str) -> dict:
-    """Write WORKPLAN.md or a task file of the editable workplan. Nothing
-    is committed."""
+    """Write WORKPLAN.md or a task file of the editable workplan, and
+    commit it as '<id> edit <name>'."""
     if not plans.ID.fullmatch(wid) or not DOCUMENT.fullmatch(name):
         raise Fail(f"{wid}/{name}: not a workplan document")
     if not editable(wid):
@@ -235,14 +247,14 @@ def save_document(wid: str, name: str, text: str) -> dict:
     if not path.parent.is_dir():
         raise Fail(f"{path.parent}: no such task")
     path.write_text(text if not text or text.endswith("\n") else text + "\n")
-    return {"saved": str(path)}
+    return {"saved": str(path), "commit": commit_paths([str(path)], f"{wid} edit {name}")}
 
 
 def add_task(wid: str, title: str, depends: list[str] | None = None,
-             change: str | None = None) -> dict:
+             change: str | None = None, edit: bool = False) -> dict:
     """The next task of the editable workplan: TASK.md and BREAKDOWN.md
-    from their templates, and its line in WORKPLAN.md. Nothing is
-    committed."""
+    from their templates, and its line in WORKPLAN.md; with edit, the
+    editor opens on TASK.md. All are committed as '<id> add <nnnn>'."""
     if not editable(wid):
         raise Fail(f"{wid} is editable only on {plans.branch_of(wid)}")
     if not plans.plan_path(wid).is_file():
@@ -270,8 +282,12 @@ def add_task(wid: str, title: str, depends: list[str] | None = None,
         change=" ".join(change.split()) if change else CHANGE_PLACEHOLDER))
     (directory / "BREAKDOWN.md").write_text(plans.render("documents", "BREAKDOWN.md", **values))
     plans.add_task_line(wid, f"{nnnn}  {title}")
+    if edit:
+        git.edit(directory / "TASK.md")
     return {"task": tid, "created": [str(directory / "TASK.md"), str(directory / "BREAKDOWN.md")],
-            "listed": str(plans.plan_path(wid))}
+            "listed": str(plans.plan_path(wid)),
+            "commit": commit_paths([str(directory), str(plans.plan_path(wid))],
+                                   f"{wid} add {nnnn}")}
 
 
 def drop_task(task: str, master: str) -> dict:
@@ -294,7 +310,7 @@ def drop_task(task: str, master: str) -> dict:
 
 def edit_document(wid: str, name: str) -> dict:
     """Open WORKPLAN.md or a task file of the editable workplan in the
-    editor git uses. Nothing is committed."""
+    editor git uses, and commit it as '<id> edit <name>'."""
     if not plans.ID.fullmatch(wid) or not DOCUMENT.fullmatch(name):
         raise Fail(f"{wid}/{name}: not a workplan document")
     if not editable(wid):
@@ -306,7 +322,9 @@ def edit_document(wid: str, name: str) -> dict:
     git.edit(path)
     if not existed and path.exists() and not path.read_text().strip():
         path.unlink()
-    return {"saved": str(path)}
+    if not path.exists():
+        return {"saved": str(path), "commit": None}
+    return {"saved": str(path), "commit": commit_paths([str(path)], f"{wid} edit {name}")}
 
 
 # ---------------------------------------------------------------------------

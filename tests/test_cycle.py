@@ -54,7 +54,8 @@ class Cycle(unittest.TestCase):
         plan = self.repo.read(f"workplans/{wid}/WORKPLAN.md")
         self.assertTrue(plan.startswith(f"# Workplan {wid}: greeting\n"))
         self.assertTrue(plan.endswith("FROM THE EDITOR\n"))
-        self.assertIn(f"?? workplans/{wid}/", self.repo.git("status", "--porcelain"))
+        self.assertEqual(self.repo.git("status", "--porcelain"), "")
+        self.assertEqual(self.repo.git("log", "-1", "--format=%s"), f"{wid} workplan")
 
     def test_plan_with_goal(self):
         self.repo.wp("init")
@@ -96,8 +97,6 @@ class Cycle(unittest.TestCase):
 
     def test_gen_task_needs_the_branch(self):
         wid = planned(self.repo, tasks=0)
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "plan")
         self.repo.git("switch", "-q", "master")
         self.repo.git("checkout", "-q", f"workplan/{wid}/definition", "--", "workplans")
         result = self.repo.wp("gen-task", wid, env=self.env, ok=False)

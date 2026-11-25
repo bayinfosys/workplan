@@ -97,11 +97,12 @@ class Guards(unittest.TestCase):
         save = f"from workplan import ops; ops.save_document('{wid}', %r, 'text')"
         self.repo.py(save % "0000/NOTES.md")
         self.assertEqual(self.repo.read(f"workplans/{wid}/0000/NOTES.md"), "text\n")
-        self.assertEqual(self.repo.git("log", "-1", "--format=%s"), f"{wid} define tasks")
+        self.assertEqual(self.repo.git("log", "-1", "--format=%s"), f"{wid} edit 0000/NOTES.md")
+        self.repo.py(save % "0000/NOTES.md")
+        self.assertEqual(self.repo.git("log", "-1", "--format=%s"), f"{wid} edit 0000/NOTES.md")
+        self.assertEqual(self.repo.git("rev-list", "--count", "--grep=edit 0000", "HEAD"), "1")
         for name in ("0000/output.patch", "../config.toml", "0009/TASK.md", "app.txt"):
             self.repo.py(save % name, ok=False)
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "notes")
         self.repo.git("switch", "-q", "master")
         self.repo.git("checkout", "-q", f"workplan/{wid}/definition", "--", "workplans")
         result = self.repo.py(save % "0000/TASK.md", ok=False)

@@ -58,12 +58,14 @@ class ByHand(unittest.TestCase):
         self.hand.write("app.txt", "hello\n")
         self.hand.commit_all("app")
         self.hand.wp("init")
-        plan = Template((TEMPLATES / "documents/WORKPLAN.md").read_text()).substitute(
+        first = Template((TEMPLATES / "documents/WORKPLAN.md").read_text()).substitute(
             id=wid, title="greeting", goal=GOAL)
-        plan = plan.replace("## Tasks\n\n", "## Tasks\n\n0000  Task number 0\n\n")
+        plan = first.replace("## Tasks\n\n", "## Tasks\n\n0000  Task number 0\n\n")
         task = self.tool.read(f"workplans/{wid}/0000/TASK.md")
         breakdown = self.tool.read(f"workplans/{wid}/0000/BREAKDOWN.md")
         self.hand.sh(f"git switch -q -c workplan/{wid}/definition master")
+        self.hand.write(f"workplans/{wid}/WORKPLAN.md", first)
+        self.hand.sh(f"git add workplans/{wid}\ngit commit -q -m '{wid} workplan'")
         self.hand.write(f"workplans/{wid}/WORKPLAN.md", plan)
         self.hand.write(f"workplans/{wid}/0000/TASK.md", task)
         self.hand.write(f"workplans/{wid}/0000/BREAKDOWN.md", breakdown)

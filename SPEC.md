@@ -206,7 +206,8 @@ and `project`.
 Text in angle brackets in a template is for the author to replace.
 
 `workplan add-task TITLE [--depend N] [-m CHANGE]` writes a new task
-this way and adds its line to WORKPLAN.md.
+this way, adds its line to WORKPLAN.md, and commits them as
+`<id> add <nnnn>`.
 
 By hand, a new task:
 
@@ -216,6 +217,8 @@ mkdir $w/$n
 cp <templates>/documents/TASK.md <templates>/documents/BREAKDOWN.md $w/$n/
 $EDITOR $w/$n/TASK.md $w/$n/BREAKDOWN.md     # replace $title, $depends, $change
 $EDITOR $w/WORKPLAN.md                      # add "0003  <title>" under Tasks
+git add $w/$n $w/WORKPLAN.md
+git commit -m "${w#workplans/} add $n" -- $w/$n $w/WORKPLAN.md
 ```
 
 ## 5. Steps

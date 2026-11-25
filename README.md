@@ -44,7 +44,8 @@ Run it on full auto for the real vibe coding experience, or manual for the good 
 workplan init                      # create workplans/ and commit it
 $EDITOR workplans/BACKLOG.md       # the work not yet started: one ## heading per item
 workplan add-workplan greeting     # branch workplan/<date>-greeting/definition;
-                                   # the editor opens on WORKPLAN.md: goal, context, findings
+                                   # the editor opens on WORKPLAN.md: goal, context, findings;
+                                   # it is committed
 workplan gen-task                  # the agent writes the tasks; WORKPLAN.md and the
                                    # tasks are committed
 git push                           # share the plan
@@ -70,14 +71,19 @@ Commands are `verb-noun` over three nouns, `workplan`, `task` and
 a second name for `list-task`.
 
 To write tasks yourself in place of `gen-task`, use
-`add-task "Say goodbye" --depend 0000` for each; `accept-patch` commits
-a task's files with its patch.
+`add-task "Say goodbye" --depend 0000` for each.
 
 `add-workplan` opens the editor git uses for commit messages, on
 WORKPLAN.md rendered from its template; closing it unchanged creates
 nothing. `add-workplan greeting -m "app.txt says goodbye"` writes the
 goal and skips the editor. `edit-workplan` and `edit-task` open the
 editor the same way on an existing document.
+
+Every command that changes a document commits it, on the checked-out
+branch and with nothing else that is staged: `add-workplan` as
+`<id> workplan`, `add-task` as `<id> add <nnnn>`, `add-task --reply` as
+`<id> define tasks`, and `edit-workplan` and `edit-task` as
+`<id> edit <document>`. An edit that changes nothing commits nothing.
 
 Every command also runs as `wp`: `wp add-workplan greeting`,
 `wp accept-patch 0000`.
@@ -92,15 +98,15 @@ scripted agent.
 | `init` | create `workplans/` with README, PRINCIPLES.md, BACKLOG.md, config.toml and dispatch.sh; add the working files to .gitignore; commit |
 | `list-workplan` | every workplan, in the tree or on another branch, and whether it is editable |
 | `show-workplan [ID]` | the workplan's goal and its tasks' states |
-| `add-workplan NAME [-m GOAL]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, on a new branch from master |
-| `edit-workplan [ID]` | WORKPLAN.md in the editor |
+| `add-workplan NAME [-m GOAL]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, on a new branch from master; commit |
+| `edit-workplan [ID]` | WORKPLAN.md in the editor; commit |
 | `merge-workplan [ID] [-m MESSAGE] [--show]` | squash the workplan into master, with the message from its template; `--show` prints the message |
 | `list-task [ID]`, `status [ID]` | each task's state; a workplan held only on another branch shows its committed states |
 | `show-task NNNN` | the task's state and TASK.md |
-| `add-task TITLE [--depend N] [-m CHANGE]` | the next task's TASK.md and BREAKDOWN.md from their templates, and its line in WORKPLAN.md; the editor opens on TASK.md |
-| `add-task --reply FILE` | the new tasks in a gen-task reply from a chat; `-` reads standard input |
+| `add-task TITLE [--depend N] [-m CHANGE]` | the next task's TASK.md and BREAKDOWN.md from their templates, and its line in WORKPLAN.md; the editor opens on TASK.md; commit |
+| `add-task --reply FILE` | the new tasks in a gen-task reply from a chat; `-` reads standard input; commit |
 | `gen-task [ID] [--prompt]` | the agent writes each new task's TASK.md and BREAKDOWN.md; they are listed in WORKPLAN.md and committed with it; `--prompt` prints the prompt for a chat |
-| `edit-task NNNN [--doc NAME]` | TASK.md, BREAKDOWN.md or NOTES.md in the editor |
+| `edit-task NNNN [--doc NAME]` | TASK.md, BREAKDOWN.md or NOTES.md in the editor; commit |
 | `drop-task NNNN` | move the task to `## Dropped` in WORKPLAN.md and commit WORKPLAN.md |
 | `show-patch NNNN` | the task, its state, COMMIT_MSG, its dependencies and their states, the files changed; then the staged change if applied, else output.patch |
 | `gen-patch NNNN [--prompt]` | the agent writes output.patch and COMMIT_MSG; `--prompt` prints the prompt for a chat |

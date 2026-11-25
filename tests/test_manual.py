@@ -122,11 +122,12 @@ class Manual(unittest.TestCase):
         file = Path(self.tmp.name) / "tasks.txt"
         file.write_text(reply)
         out = self.repo.wp("add-task", "--reply", str(file)).stdout
-        self.assertEqual(out.strip(), f"added {wid}/0001")
+        self.assertEqual(out.strip().splitlines()[0], f"added {wid}/0001")
+        self.assertEqual(self.repo.git("log", "-1", "--format=%s"), f"{wid} define tasks")
         self.assertTrue(self.repo.read(f"workplans/{wid}/0000/TASK.md").startswith("# Task number 0"))
         self.assertIn("0001  From a chat", self.repo.read(f"workplans/{wid}/WORKPLAN.md"))
         self.assertEqual(self.state("0001"), "refinement")
-        self.assertIn(f"?? workplans/{wid}/0001/", self.repo.git("status", "--porcelain"))
+        self.assertEqual(self.repo.git("status", "--porcelain"), "")
 
         result = self.repo.wp("add-task", "--reply", "-", input="nothing useful\n", ok=False)
         self.assertIn("no new task", result.stderr)

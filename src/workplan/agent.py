@@ -310,8 +310,7 @@ def gen_task(arg: str | None, cfg: dict) -> dict:
 
 def add_tasks(wid: str, reply: str) -> dict:
     """A gen-task reply in the none agent's form, pasted from a chat: its
-    new tasks are written and listed, as gen-task writes them. Nothing is
-    committed."""
+    new tasks are written, listed and committed, as gen-task does."""
     if not ops.editable(wid):
         raise Fail(f"{wid} is editable only on {plans.branch_of(wid)}")
     _need_plan(wid)
@@ -323,7 +322,9 @@ def add_tasks(wid: str, reply: str) -> dict:
     if not tids:
         raise Fail(f"the reply holds no new task; each starts with a line "
                    f"'===== {plans.ROOT}/{wid}/<nnnn>/TASK.md ====='")
-    return {"workplan": wid, "tasks": tids}
+    paths = [str(plans.plan_path(wid)), *(str(plans.ROOT / tid) for tid in tids)]
+    return {"workplan": wid, "tasks": tids,
+            "commit": ops.commit_paths(paths, f"{wid} define tasks")}
 
 
 def _need_plan(wid: str) -> Path:
