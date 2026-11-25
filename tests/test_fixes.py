@@ -1,6 +1,9 @@
 """Guards on accept and merge, the routing rules, and the hooks."""
 
+import os
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -67,7 +70,19 @@ class Guards(unittest.TestCase):
         self.repo.wp("accept-patch", "0000")
         self.repo.wp("merge-workplan")
         self.assertEqual(self.repo.git("branch", "--show-current"), "master")
+        self.assertEqual(self.repo.git("branch", "--list", f"workplan/{wid}/*"), "")
         self.assertNotIn(f"{wid}/0001", self.repo.git("log", "-1", "--format=%B"))
+
+    def test_plan_draft_stays_out_of_the_git_directory(self):
+        self.repo.wp("init")
+        self.repo.wp("add-workplan", "drafted",
+                     env={"GIT_EDITOR": "sh -c 'echo A goal. >> \"$1\"' x"})
+        self.assertFalse((self.repo.path / ".git" / "workplan").exists())
+
+    def test_merge_draft_stays_out_of_the_git_directory(self):
+        self.ready()
+        self.repo.wp("merge-workplan")
+        self.assertFalse((self.repo.path / ".git" / "workplan").exists())
 
     def test_merge_uses_the_project_template(self):
         wid = self.ready()
@@ -102,6 +117,12 @@ class Guards(unittest.TestCase):
                      )
         self.assertEqual(self.repo.git("log", "-1", "--format=%B").strip(), "Short message\n\nBody")
 
+    def test_init_writes_an_executable_dispatch_script(self):
+        self.repo.wp("init")
+        script = self.repo.path / "workplans" / "dispatch.sh"
+        self.assertTrue(os.access(script, os.X_OK))
+        self.assertTrue((self.repo.path / "workplans" / "BACKLOG.md").is_file())
+
     def test_install_writes_and_respects_hooks(self):
         hooks = self.repo.path / ".git" / "hooks"
         hooks.mkdir(exist_ok=True)
@@ -111,6 +132,27 @@ class Guards(unittest.TestCase):
         self.assertIn("skipped", out)
         self.assertIn("workplan route", (hooks / "post-commit").read_text())
         self.assertEqual((hooks / "post-merge").read_text(), "#!/bin/sh\necho mine\n")
+
+    def test_hook_clears_git_variables(self):
+        wid = planned(self.repo)
+        self.repo.wp("install")
+        bin_dir = Path(self.tmp.name) / "bin"
+        bin_dir.mkdir()
+        shim = bin_dir / "workplan"
+        shim.write_text(f'#!/bin/sh\nexec "{sys.executable}" -m workplan "$@"\n')
+        shim.chmod(0o755)
+        log = Path(self.tmp.name) / "dispatched"
+        self.repo.sh(".git/hooks/post-commit", env={
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "GIT_INDEX_FILE": str(Path(self.tmp.name) / "elsewhere"),
+            "WORKPLAN_ROUTE_DISPATCH":
+                f"sh -c 'echo \"[$GIT_INDEX_FILE] $*\" > {log}' x",
+        })
+        for _ in range(100):
+            if log.exists() and log.read_text().endswith("\n"):
+                break
+            time.sleep(0.1)
+        self.assertEqual(log.read_text().strip(), f"[] gen-patch {wid}/0000")
 
 
 class Routing(unittest.TestCase):

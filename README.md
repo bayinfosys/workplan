@@ -42,6 +42,7 @@ Run it on full auto for the real vibe coding experience, or manual for the good 
 
 ```bash
 workplan init                      # create workplans/ and commit it
+$EDITOR workplans/BACKLOG.md       # the work not yet started: one ## heading per item
 workplan add-workplan greeting     # branch workplan/<date>-greeting/definition;
                                    # the editor opens on WORKPLAN.md: goal, context, findings
 workplan gen-task                  # the agent writes the tasks; WORKPLAN.md and the
@@ -54,7 +55,8 @@ workplan show-patch 0000           # read it, test it
 workplan accept-patch 0000         # commit it with the task's files; or: reject-patch
 workplan status
 
-workplan merge-workplan            # squash into master; the editor opens on the message
+workplan merge-workplan            # squash into master; the editor opens on the message;
+                                   # the local definition branch is deleted
 ```
 
 The commands commit what they complete: `init`, `gen-task`,
@@ -86,7 +88,7 @@ scripted agent.
 
 | Command | Does |
 |---|---|
-| `init` | create `workplans/` with README, PRINCIPLES.md and config.toml; add the working files to .gitignore; commit |
+| `init` | create `workplans/` with README, PRINCIPLES.md, BACKLOG.md, config.toml and dispatch.sh; add the working files to .gitignore; commit |
 | `list-workplan` | every workplan, in the tree or on another branch, and whether it is editable |
 | `show-workplan [ID]` | the workplan's goal and its tasks' states |
 | `add-workplan NAME [-m GOAL]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, on a new branch from master |
@@ -133,7 +135,8 @@ same, beside Gen tasks and Gen patch.
 
 ## Configuration
 
-`workplans/config.toml`; `workplan init` writes it with every key.
+`workplans/config.toml`; `workplan init` writes it with every key, and
+writes `workplans/dispatch.sh` for `route.dispatch`.
 Environment variables override it, and API keys come from the
 environment only.
 
@@ -243,6 +246,14 @@ gen-patch 2026-11-24-greeting/0000
 the background after each commit. `--dispatch` runs `route.dispatch`
 with the action and its targets. `gen-task` and `gen-patch` are also command
 names, so a dispatch script can run `workplan "$@"` for those two.
+`workplan init` writes such a script, `workplans/dispatch.sh`: it runs
+`gen-task`, runs `gen-patch` for each target in parallel, and on
+`review` produces each stale patch again. Set
+`route.dispatch = "workplans/dispatch.sh"` and run `workplan install`
+for full auto.
+The hooks clear the variables git sets for hooks, such as
+`GIT_INDEX_FILE`, so that the commands a dispatch script runs work in
+their own worktrees.
 
 ## Serve
 

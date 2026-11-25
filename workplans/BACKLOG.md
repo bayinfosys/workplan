@@ -5,47 +5,65 @@ the tasks already in view. Items are in order of priority. An item
 chosen for work becomes a workplan, and leaves this file in that
 workplan's first commit.
 
-## Follow-ups from command-interface
+## Item commands
 
-The gaps found during 2026-11-24-command-interface, and the fixes found
-before it.
-
-- the post-commit and post-merge hooks pass git's `GIT_INDEX_FILE` and
-  author variables on to workplan, so its worktree commands fail in the
-  background; the hooks clear them
-- merge-workplan deletes the local definition branch after the squash
-- SPEC section 5: committing the task files before work starts is
-  optional, since accept-patch carries them
-- init writes a dispatch.sh, commented out in config.toml, so full auto
-  is one setting away
-- the departures from 2026-11-24-command-interface's tasks recorded in
-  their NOTES.md: 0004 renamed the agent functions; 0005 added `$change`
-  to the TASK.md template; 0006 reads a reply as a file on the CLI and
-  as text over HTTP, keeps git's diff of an applied reply, and shares
-  the agent's prompt and capture code; 0007 depends on 0006 as well as
-  0003
-
-## Backlog items
-
-BACKLOG.md as the queue of work, and a fourth noun: an item on the
-backlog becomes a workplan, a workplan becomes tasks, a task becomes a
-patch.
+Items as the fourth noun: an item on the backlog becomes a workplan, a
+workplan becomes tasks, a task becomes a patch.
 
 - list-item, show-item, add-item, edit-item and drop-item over the
   `## ` headings of BACKLOG.md; an item's name comes from its heading
 - add-workplan --item NAME fills the WORKPLAN.md template from the
   item, and the item leaves BACKLOG.md in the workplan's first commit
-- gen-workplan NAME: the agent writes WORKPLAN.md from the item, as
-  gen-task writes tasks from a workplan
 - a Backlog view in the page: a card per item, opening its text, with
   Start
-- README and SPEC describe the backlog and the chain from item to patch
+- how an edit to BACKLOG.md is committed: by edit-item, or by the next
+  workplan to start
+- README and SPEC describe the chain from item to patch
+
+## gen-workplan
+
+The agent expands an item into WORKPLAN.md, as gen-task expands a
+workplan into tasks: goal, context, findings and decisions, from the
+item and the current state of the project.
+
+- gen-workplan NAME, with --prompt for a chat, and its route
+- the item leaves BACKLOG.md in the workplan's first commit, as with
+  add-workplan --item
+- a Start with the agent button beside Start in the Backlog view
+
+## gen-prompts
+
+The three gen- commands work at three scopes, and each needs its own
+prompt, context and permissions.
+
+- gen-workplan: the whole project (README, SPEC, PRINCIPLES.md, the
+  item, recent history, past workplans, the code); explores and writes
+  WORKPLAN.md; read-only
+- gen-task: WORKPLAN.md and the files it names; writes task files;
+  read-only
+- gen-patch: one task and its files; edits, builds, runs the tests and
+  repeats; write and shell
+- the context each prompt is built from, gathered in steps a reader
+  can follow
+- the claude-code and codex presets get read-only permissions for
+  gen-workplan and gen-task, and write and shell for gen-patch
+
+## prompt-log
+
+Each gen- run, by agent or by --prompt, writes its rendered prompt,
+its context and the agent's reply to workplans/logs/, for debugging.
+
+- one file per run: <time>-<action>-<target>.md
+- `logs` joins `templates` as a name no workplan may take: a list of
+  reserved names in plans.py
+- whether the logs are ignored by git
 
 ## Page polish
 
+- click a rendered document to edit it in place: a flat text box with
+  Save and Cancel
 - mark a task's uncommitted document changes on its card and its tabs,
   worked out from git, as the states are
-- click a rendered document to edit it in place
 - the task panel's actions in `development`: seven buttons in one row
 - the open panel covers the header's buttons
 

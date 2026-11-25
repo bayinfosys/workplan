@@ -9,11 +9,14 @@ checked out.
 import datetime
 import re
 import stat
+import tempfile
 from pathlib import Path
 
 from workplan import git, plans
 from workplan.git import Fail
 from workplan.plans import commit_for, master_ref, patch_applied, state
+
+PROJECT_FILES = ("README.md", "PRINCIPLES.md", "BACKLOG.md", "config.toml", "dispatch.sh")
 
 GITIGNORE = (
     "workplans/*/*/output.patch",
@@ -29,6 +32,8 @@ HOOK_MARK = "# installed by workplan"
 HOOK = f"""#!/bin/sh
 {HOOK_MARK}
 command -v workplan >/dev/null 2>&1 || exit 0
+unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_PREFIX GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL \\
+    GIT_AUTHOR_DATE GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL GIT_COMMITTER_DATE
 ( workplan route --dispatch HEAD >/dev/null 2>&1 & )
 """
 HOOKS = ("post-commit", "post-merge")
@@ -45,15 +50,17 @@ def _need(path: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 def init() -> list[str]:
-    """Create workplans/ with its README, principles and config, add the
-    working files to .gitignore, and commit them. Existing files are
-    left alone."""
+    """Create workplans/ with its README, principles, backlog, config and
+    dispatch script, add the working files to .gitignore, and commit
+    them. Existing files are left alone."""
     done, paths = [], []
-    for name in ("README.md", "PRINCIPLES.md", "config.toml"):
+    for name in PROJECT_FILES:
         path = plans.ROOT / name
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(plans.render("project", name))
+            path.write_text(plans.template_text("project", name))
+            if name == "dispatch.sh":
+                path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
             done.append(f"created {path}")
             paths.append(str(path))
 
@@ -95,11 +102,11 @@ def plan(name: str, master: str, goal: str | None = None, today: str | None = No
     if goal:
         text = rendered
     else:
-        draft = git.git_path("workplan") / "WORKPLAN.md"
-        draft.parent.mkdir(parents=True, exist_ok=True)
-        draft.write_text(rendered)
-        git.edit(draft)
-        text = draft.read_text()
+        with tempfile.TemporaryDirectory(prefix="workplan-") as tmp:
+            draft = Path(tmp) / "WORKPLAN.md"
+            draft.write_text(rendered)
+            git.edit(draft)
+            text = draft.read_text()
         if not text.strip() or text == rendered:
             raise Fail("WORKPLAN.md unchanged; no workplan created")
 
@@ -432,33 +439,35 @@ def merge(arg: str | None, master: str, edit: bool = True, message: str | None =
     the editor, as git commit does.
 
     Every listed task must be committed or dropped, and the branch must
-    contain master. On any failure, master and the tree are restored.
+    contain master. On any failure, master and the tree are restored;
+    on success, the local branch is deleted.
     """
     wid = plans.workplan_id(arg)
     branch = ready_to_merge(wid, master)
 
-    draft = git.git_path("workplan") / "SQUASH_COMMIT_MSG"
-    draft.parent.mkdir(parents=True, exist_ok=True)
-    draft.write_text(message if message is not None else squash_message(wid, master, branch))
+    text = message if message is not None else squash_message(wid, master, branch)
 
     previous = git.branch()
-    git.run("switch", "-q", master)
-    try:
-        git.run("merge", "--squash", branch)
-        if edit and message is None:
-            git.interactive("commit", "-q", "-e", "-F", str(draft))
-        else:
-            git.run("commit", "-q", "-F", str(draft))
-    except Fail:
-        git.ok("reset", "--merge")
-        git.ok("switch", "-q", previous)
-        raise
+    with tempfile.TemporaryDirectory(prefix="workplan-") as tmp:
+        draft = Path(tmp) / "SQUASH_COMMIT_MSG"
+        draft.write_text(text)
+        git.run("switch", "-q", master)
+        try:
+            git.run("merge", "--squash", branch)
+            if edit and message is None:
+                git.interactive("commit", "-q", "-e", "-F", str(draft))
+            else:
+                git.run("commit", "-q", "-F", str(draft))
+        except Fail:
+            git.ok("reset", "--merge")
+            git.ok("switch", "-q", previous)
+            raise
+    git.run("branch", "-q", "-D", branch)
 
     return {
         "workplan": wid,
         "commit": git.run("log", "-1", "--format=%h %s"),
-        "next": [f"git push origin {master}", f"git push origin --delete {branch}",
-                 f"git branch -D {branch}"],
+        "next": [f"git push origin {master}", f"git push origin --delete {branch}"],
     }
 
 

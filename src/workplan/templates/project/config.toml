@@ -18,6 +18,7 @@ classifier = "rules"   # rules | llm
 model = ""
 timeout = 120
 dispatch = ""          # run as: <dispatch> <action> <target>...
+# dispatch = "workplans/dispatch.sh"   # gen-task, gen-patch, and stale patches on review
 
 [agent]
 name = "none"          # none | claude-code | codex | command

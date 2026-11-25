@@ -36,7 +36,9 @@ tests/                  your test code
 workplans/              the workplan state
   README.md             points here
   PRINCIPLES.md         principles for the project
+  BACKLOG.md            candidate workplans, in order of priority
   config.toml           settings for the workplan command
+  dispatch.sh           the steps the workplan command's hooks run after each commit
   templates/            optional overrides of the templates
   <id>/                 one workplan
     WORKPLAN.md         the goal, context, decisions and tasks
@@ -50,7 +52,8 @@ workplans/              the workplan state
 
 `PRINCIPLES.md` holds project-level guidance for workplans, task
 definitions and review: taste, personas, constraints. `config.toml`
-configures the `workplan` command and has no meaning in the protocol.
+configures the `workplan` command and has no meaning in the protocol,
+as does `dispatch.sh`, the script `route.dispatch` can name.
 
 Working files ignored by git:
 
@@ -63,7 +66,7 @@ By hand:
 
 ```bash
 mkdir -p workplans
-$EDITOR workplans/README.md workplans/PRINCIPLES.md
+$EDITOR workplans/README.md workplans/PRINCIPLES.md workplans/BACKLOG.md
 printf '%s\n' 'workplans/*/*/output.patch' 'workplans/*/*/COMMIT_MSG' >> .gitignore
 git add workplans .gitignore
 git commit -m "workplan init"
@@ -82,6 +85,29 @@ changes are applied to the repository. A task id is
 ## 3. Documents
 
 Each document starts from a template (section 4).
+
+### BACKLOG.md
+
+The work not yet started. Each `## ` heading is an item: a candidate
+workplan, named by its heading, with free text under it on what it is
+for and the tasks already in view. The order of the headings is the
+order of priority.
+
+```markdown
+# Backlog
+
+## Item commands
+
+Items as the fourth noun: an item becomes a workplan, a workplan
+becomes tasks, a task becomes a patch.
+
+## Animation
+
+Render examples/demo.tape for the README.
+```
+
+An item chosen for work becomes a workplan, and leaves BACKLOG.md in
+the workplan's first commit.
 
 ### WORKPLAN.md
 
@@ -194,10 +220,15 @@ $EDITOR $w/WORKPLAN.md                      # add "0003  <title>" under Tasks
 
 ## 5. Steps
 
-1. Plan: write WORKPLAN.md on a new workplan branch.
-2. Define the tasks: write each task's TASK.md and BREAKDOWN.md, list
-   them in WORKPLAN.md, and commit WORKPLAN.md with the tasks. Refine
-   the tasks, in discussion or in NOTES.md, until they are accepted.
+1. Plan: choose an item from BACKLOG.md, write WORKPLAN.md from it on
+   a new workplan branch, and remove the item from BACKLOG.md in the
+   same commit.
+2. Define the tasks: write each task's TASK.md and BREAKDOWN.md, and
+   list them in WORKPLAN.md. Commit WORKPLAN.md with the tasks before
+   work starts, to share and review them; or leave them uncommitted,
+   and each task's files are committed with its patch in step 3.
+   Refine the tasks, in discussion or in NOTES.md, until they are
+   accepted.
 3. For each task in order: confirm the tasks it depends on are
    committed; run the patch loop (section 6) until the diff is right;
    commit it with COMMIT_MSG, together with the task's directory and
@@ -218,7 +249,10 @@ git switch -c workplan/$w/definition master
 mkdir -p workplans/$w
 cp <templates>/documents/WORKPLAN.md workplans/$w/
 $EDITOR workplans/$w/WORKPLAN.md             # replace $id, $title, $goal
-# write the tasks (section 4), then:
+$EDITOR workplans/BACKLOG.md                  # remove the item
+git add workplans/$w workplans/BACKLOG.md
+git commit -m "$w workplan"
+# write the tasks (section 4), then, to share them before work starts:
 git add workplans/$w
 git commit -m "$w define tasks"
 ```
@@ -343,8 +377,9 @@ git merge-base --is-ancestor master $b || echo "rebase $b onto master first"
 git switch master
 git merge --squash $b
 git commit -e -F /tmp/msg
+git branch -D $b
 git push origin master
-git push origin --delete $b && git branch -D $b
+git push origin --delete $b
 ```
 
 `git log --format='%h %s %(trailers:key=Workplan,valueonly)'` lists

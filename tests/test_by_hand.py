@@ -45,7 +45,8 @@ class ByHand(unittest.TestCase):
         self.hand.sh(
             "mkdir -p workplans\n"
             f"cp {TEMPLATES}/project/README.md {TEMPLATES}/project/PRINCIPLES.md "
-            f"{TEMPLATES}/project/config.toml workplans/\n"
+            f"{TEMPLATES}/project/BACKLOG.md {TEMPLATES}/project/config.toml "
+            f"{TEMPLATES}/project/dispatch.sh workplans/\n"
             "printf '%s\\n' 'workplans/*/*/output.patch' 'workplans/*/*/COMMIT_MSG' >> .gitignore\n"
             "git add workplans .gitignore\n"
             "git commit -q -m 'workplan init'")
@@ -141,8 +142,11 @@ class ByHand(unittest.TestCase):
             f"  echo \"Workplan: workplans/$w/WORKPLAN.md\"; }} > {msg}\n"
             "git switch -q master\n"
             "git merge -q --squash $b\n"
-            f"git commit -q -e -F {msg}")
+            f"git commit -q -e -F {msg}\n"
+            "git branch -q -D $b")
         self.assertEqual(self.head(self.tool), self.head(self.hand))
+        for repo in (self.tool, self.hand):
+            self.assertEqual(repo.git("branch", "--list", f"workplan/{wid}/*"), "")
 
 
 if __name__ == "__main__":
