@@ -76,7 +76,7 @@ class Cycle(unittest.TestCase):
             f"workplans/{wid}/0001/TASK.md", f"workplans/{wid}/0001/BREAKDOWN.md",
         ]))
         plan = self.repo.read(f"workplans/{wid}/WORKPLAN.md")
-        self.assertIn("## Tasks\n\n0000  Task number 0\n\n0001  Task number 1\n\n## Dropped", plan)
+        self.assertIn("## Tasks\n\n0000  Task number 0\n0001  Task number 1\n\n## Dropped", plan)
         self.assertEqual(self.states(), {"0000": "refinement", "0001": "refinement"})
         self.assertEqual(self.repo.git("worktree", "list").count("\n"), 0)
 
@@ -116,7 +116,7 @@ class Cycle(unittest.TestCase):
         self.assertIn("Depends on 0000.", task)
         self.assertTrue(task.endswith("FROM THE EDITOR\n"))
         self.assertTrue(self.repo.read(f"workplans/{wid}/0001/BREAKDOWN.md").startswith("# Breakdown"))
-        self.assertIn("0000  Task number 0\n\n0001  Say goodbye\n\n## Dropped",
+        self.assertIn("0000  Task number 0\n0001  Say goodbye\n\n## Dropped",
                       self.repo.read(f"workplans/{wid}/WORKPLAN.md"))
         self.assertEqual(self.states(), {"0000": "refinement", "0001": "refinement"})
 

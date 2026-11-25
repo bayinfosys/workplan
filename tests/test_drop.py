@@ -32,7 +32,7 @@ class Drop(unittest.TestCase):
         out = self.repo.wp("drop-task", "0001").stdout
         self.assertEqual(out.strip().split(" ", 1)[1], f"{wid} drop 0001")
         text = plan.read_text()
-        self.assertIn("## Tasks\n\n0000  Task number 0\n\n0002  Task number 2\n\n## Dropped\n\n"
+        self.assertIn("## Tasks\n\n0000  Task number 0\n0002  Task number 2\n\n## Dropped\n\n"
                       "0001  Task number 1, which\n      runs on\n", text)
         self.assertEqual(self.states(), {"0000": "refinement", "0001": "dropped",
                                          "0002": "refinement"})

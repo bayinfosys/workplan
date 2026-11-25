@@ -192,8 +192,9 @@ def section_span(text: str, name: str) -> tuple[int, int] | None:
 
 
 def add_task_line(wid: str, line: str, section: str = "tasks") -> None:
-    """Add a task line at the end of a WORKPLAN.md section, Tasks unless
-    another is named; a Dropped section is added when there is none."""
+    """Add a task line straight after the last line of a WORKPLAN.md
+    section, Tasks unless another is named; a Dropped section is added
+    when there is none."""
     path = plan_path(wid)
     text = path.read_text()
     span = section_span(text, section)
@@ -204,7 +205,7 @@ def add_task_line(wid: str, line: str, section: str = "tasks") -> None:
         span = section_span(text, section)
     start, end = span
     body = text[start:end].strip("\n")
-    body = f"{body}\n\n{line}" if body else line
+    body = f"{body}\n{line}" if body else line
     result = text[:start] + "\n\n" + body + "\n\n" + text[end:].lstrip("\n")
     path.write_text(result.rstrip("\n") + "\n")
 
