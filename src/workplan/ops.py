@@ -439,12 +439,18 @@ def squash_message(wid: str, master: str, branch: str) -> str:
     ]
     if not subjects:
         raise Fail(f"no task commits on {branch} beyond {master}")
+    breaking = ""
+    for tid in sorted({s.split()[0] for s in subjects}):
+        path = plans.ROOT / tid / "TASK.md"
+        if path.is_file() and (text := plans.trailer(path.read_text(), "Breaking")):
+            breaking += f"BREAKING-CHANGE: {text}\n"
     return plans.render(
         "documents", "SQUASH_COMMIT_MSG",
         id=wid,
         title=plans.workplan_title(wid),
         goal=plans.goal(wid),
         tasks="\n".join(subjects),
+        breaking=breaking,
         path=str(plans.plan_path(wid)),
     )
 

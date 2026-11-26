@@ -214,7 +214,7 @@ and `project`.
 | documents/TASK.md | `$id`, `$title`, `$depends`, `$change` |
 | documents/BREAKDOWN.md | `$id`, `$title` |
 | documents/NOTES.md | `$id`, `$title` |
-| documents/SQUASH_COMMIT_MSG | `$id`, `$title`, `$goal`, `$tasks`, `$path` |
+| documents/SQUASH_COMMIT_MSG | `$id`, `$title`, `$goal`, `$tasks`, `$breaking`, `$path` |
 | prompts/task-gen.md | `$id`, `$next`, `$context`, `$task_template`, `$breakdown_template` |
 | prompts/task-gen-none.md | as task-gen.md |
 | prompts/patch-gen.md | `$id`, `$workplan`, `$context`, `$commit_msg` |
@@ -369,8 +369,10 @@ earlier task for instance; once merged, master holds its record.
 
 The message is rendered from the SQUASH_COMMIT_MSG template: the
 workplan id and title, the goal, the task commit subjects in order,
-and a trailer naming the workplan. The maintainer edits it before the
-commit:
+a `BREAKING-CHANGE:` trailer for each task with a `Breaking` trailer,
+and a trailer naming the workplan. Conventional Commits reads
+`BREAKING-CHANGE` as `BREAKING CHANGE`; the hyphen keeps it a git
+trailer. The maintainer edits the message before the commit:
 
 ```
 2026-11-24-one-package One import package
@@ -382,6 +384,7 @@ marigold command into an environment.
 2026-11-24-one-package/0001 Name each module by its path under marigold
 2026-11-24-one-package/0002 Install the CLI with pipx or uv tool
 
+BREAKING-CHANGE: the packages bayis and marigold_cli are now marigold
 Workplan: workplans/2026-11-24-one-package/WORKPLAN.md
 ```
 
@@ -398,6 +401,8 @@ git merge-base --is-ancestor master $b || echo "rebase $b onto master first"
 git switch $b && <the project's test command> || echo "the tests fail; merge nothing"
 { echo "$w <title>"; echo; echo "<goal>"; echo
   git log --reverse --format=%s master..$b | grep "^$w/[0-9]\{4\} "; echo
+  for t in workplans/$w/[0-9][0-9][0-9][0-9]/TASK.md; do
+    git interpret-trailers --parse "$t" | sed -n 's/^Breaking: /BREAKING-CHANGE: /p'; done
   echo "Workplan: workplans/$w/WORKPLAN.md"; } > /tmp/msg
 git switch master
 git merge --squash $b

@@ -53,6 +53,19 @@ class Guards(unittest.TestCase):
         result = self.repo.wp("patch", "accept", "0000", ok=False)
         self.assertIn(f"{wid}/0000 is not listed in WORKPLAN.md", result.stderr)
 
+    def test_merge_message_carries_breaking_changes(self):
+        wid = self.ready()
+        self.assertNotIn("BREAKING-CHANGE", self.repo.wp("merge", "--show").stdout)
+        task = f"workplans/{wid}/0000/TASK.md"
+        self.repo.write(task, self.repo.read(task) + "\nDepends: none\nBreaking: app.txt grows\n")
+        self.repo.commit_all("breaking")
+        message = self.repo.wp("merge", "--show").stdout
+        self.assertIn("\nBREAKING-CHANGE: app.txt grows\nWorkplan: ", message)
+        self.repo.wp("merge")
+        self.assertEqual(self.repo.git("log", "-1",
+                                       "--format=%(trailers:key=BREAKING-CHANGE,valueonly)"),
+                         "app.txt grows")
+
     def test_merge_runs_the_test_command(self):
         wid = self.ready()
         result = self.repo.wp("merge", env={"WORKPLAN_TEST_COMMAND": "grep -q goodbye app.txt"})
