@@ -378,7 +378,7 @@ def accept(task: str, master: str) -> str:
     msg = _need(plans.ROOT / tid / "COMMIT_MSG")
 
     if git.branch() == master:
-        raise Fail(f"HEAD is {master}; accept-patch commits on the workplan branch")
+        raise Fail(f"HEAD is {master}; patch accept commits on the workplan branch")
     lines = msg.read_text().strip().splitlines()
     if len(lines) != 1 or not lines[0].startswith(f"{tid} "):
         raise Fail(f"{msg}: one line, starting '{tid} '")
@@ -397,7 +397,7 @@ def drop_patch(task: str) -> dict:
     """Delete an unapplied patch and its COMMIT_MSG."""
     tid, patch = _patch(task)
     if patch_applied(patch):
-        raise Fail(f"{patch}: applied; reject-patch takes it out first")
+        raise Fail(f"{patch}: applied; patch reject takes it out first")
     removed = [str(patch)]
     patch.unlink()
     msg = plans.ROOT / tid / "COMMIT_MSG"

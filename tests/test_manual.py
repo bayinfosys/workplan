@@ -32,11 +32,11 @@ class Manual(unittest.TestCase):
     def test_prompts_change_nothing(self):
         wid = planned(self.repo)
         before = self.repo.git("status", "--porcelain")
-        prompt = self.repo.wp("gen-patch", "0000", "--prompt").stdout
+        prompt = self.repo.wp("patch", "gen", "0000", "--prompt").stdout
         self.assertIn(f"===== workplans/{wid}/0000/TASK.md =====", prompt)
         self.assertIn("# Task number 0", prompt)
         self.assertIn("===== app.txt =====", prompt)
-        prompt = self.repo.wp("gen-task", "--prompt").stdout
+        prompt = self.repo.wp("task", "gen", "--prompt").stdout
         self.assertIn(f"===== workplans/{wid}/WORKPLAN.md =====", prompt)
         self.assertIn("numbered from 0001 upwards", prompt)
         self.assertEqual(self.repo.git("status", "--porcelain"), before)
@@ -44,7 +44,7 @@ class Manual(unittest.TestCase):
     def test_show_patch_heads_the_diff(self):
         wid = planned(self.repo, tasks=2)
         self.repo.write(f"workplans/{wid}/0001/output.patch", DIFF)
-        out = self.repo.wp("show-patch", "0001").stdout
+        out = self.repo.wp("patch", "show", "0001").stdout
         head, stat, diff = out.split("\n\n", 2)
         self.assertEqual(head.splitlines(), [
             f"{wid}/0001  development  Task number 1",
@@ -55,7 +55,7 @@ class Manual(unittest.TestCase):
         self.assertEqual(diff, DIFF)
 
         self.repo.write(f"workplans/{wid}/0001/COMMIT_MSG", f"{wid}/0001 Say goodbye\n")
-        data = json.loads(self.repo.wp("show-patch", "0001", "--json").stdout)
+        data = json.loads(self.repo.wp("patch", "show", "0001", "--json").stdout)
         self.assertEqual(data["commit_msg"], f"{wid}/0001 Say goodbye")
         self.assertEqual(data["depends"], [{"id": f"{wid}/0000", "state": "refinement"}])
         self.assertEqual(data["text"], DIFF)
@@ -68,7 +68,7 @@ class Manual(unittest.TestCase):
                 "+run again\n ```\n")
         for reply in (f"{wid}/0000 Run again\n\n```diff\n{diff}```\n",
                       f"{wid}/0000 Run again\n\n{diff}"):
-            self.repo.wp("add-patch", "0000", input=reply)
+            self.repo.wp("patch", "add", "0000", input=reply)
             self.assertEqual(self.repo.read(f"workplans/{wid}/0000/output.patch").count("```"), 2)
             self.assertEqual(self.state("0000"), "development")
 
@@ -78,19 +78,19 @@ class Manual(unittest.TestCase):
         self.repo.write(plan, self.repo.read(plan) + "An uncommitted line.\n")
         notes = f"workplans/{wid}/0001/NOTES.md"
         diff = (f"--- /dev/null\n+++ b/{notes}\n@@ -0,0 +1 @@\n+# Notes\n")
-        self.repo.wp("add-patch", "0000", input=f"{wid}/0000 Notes\n\n```diff\n{diff}```\n")
+        self.repo.wp("patch", "add", "0000", input=f"{wid}/0000 Notes\n\n```diff\n{diff}```\n")
         patch = self.repo.read(f"workplans/{wid}/0000/output.patch")
         self.assertIn(f"+++ b/{notes}", patch)
         self.assertNotIn("WORKPLAN.md", patch)
         self.assertNotIn("COMMIT_MSG", patch)
-        self.repo.wp("accept-patch", "0000")
+        self.repo.wp("patch", "accept", "0000")
         self.assertEqual(self.repo.git("show", "--format=", "--name-only", "HEAD").split(),
                          sorted([plan, notes]))
 
     def test_add_patch(self):
         wid = planned(self.repo)
         reply = f"Here it is.\n\n{wid}/0000 Say goodbye\n\n```diff\n{DIFF}```\n"
-        out = self.repo.wp("add-patch", "0000", input=reply).stdout
+        out = self.repo.wp("patch", "add", "0000", input=reply).stdout
         self.assertIn("by a pasted reply", out)
         self.assertEqual(self.repo.read(f"workplans/{wid}/0000/COMMIT_MSG"),
                          f"{wid}/0000 Say goodbye\n")
@@ -100,16 +100,16 @@ class Manual(unittest.TestCase):
 
         file = Path(self.tmp.name) / "reply.txt"
         file.write_text(reply)
-        self.repo.wp("add-patch", "0000", str(file))
-        self.repo.wp("accept-patch", "0000")
+        self.repo.wp("patch", "add", "0000", str(file))
+        self.repo.wp("patch", "accept", "0000")
         self.assertEqual(self.repo.read("app.txt"), "hello\ngoodbye\n")
 
     def test_add_patch_refusals(self):
         wid = planned(self.repo)
-        result = self.repo.wp("add-patch", "0000", input="No diff at all.\n", ok=False)
+        result = self.repo.wp("patch", "add", "0000", input="No diff at all.\n", ok=False)
         self.assertIn("no unified diff", result.stderr)
         wrong = DIFF.replace(" hello", " not the content")
-        result = self.repo.wp("add-patch", "0000", input=f"```diff\n{wrong}```\n", ok=False)
+        result = self.repo.wp("patch", "add", "0000", input=f"```diff\n{wrong}```\n", ok=False)
         self.assertIn("did not apply", result.stderr)
         self.assertFalse((self.repo.path / f"workplans/{wid}/0000/output.patch").exists())
         self.assertEqual(self.repo.git("worktree", "list").count("\n"), 0)
@@ -121,7 +121,7 @@ class Manual(unittest.TestCase):
                  f"===== workplans/{wid}/0001/BREAKDOWN.md =====\n# Breakdown\n\n1. A step.\n")
         file = Path(self.tmp.name) / "tasks.txt"
         file.write_text(reply)
-        out = self.repo.wp("add-task", "--reply", str(file)).stdout
+        out = self.repo.wp("task", "add", "--reply", str(file)).stdout
         self.assertEqual(out.strip().splitlines()[0], f"added {wid}/0001")
         self.assertEqual(self.repo.git("log", "-1", "--format=%s"), f"{wid} define tasks")
         self.assertTrue(self.repo.read(f"workplans/{wid}/0000/TASK.md").startswith("# Task number 0"))
@@ -129,7 +129,7 @@ class Manual(unittest.TestCase):
         self.assertEqual(self.state("0001"), "refinement")
         self.assertEqual(self.repo.git("status", "--porcelain"), "")
 
-        result = self.repo.wp("add-task", "--reply", "-", input="nothing useful\n", ok=False)
+        result = self.repo.wp("task", "add", "--reply", "-", input="nothing useful\n", ok=False)
         self.assertIn("no new task", result.stderr)
 
 

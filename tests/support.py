@@ -99,14 +99,14 @@ class Repo:
 
 def scripted_agent(directory: Path, edit: str = "printf 'goodbye\\n' >> app.txt",
                    tasks: int = 1) -> Path:
-    """A command agent. For gen-task it writes `tasks` tasks, each
-    depending on the one before; for gen-patch it runs `edit` and
+    """A command agent. For task-gen it writes `tasks` tasks, each
+    depending on the one before; for patch-gen it runs `edit` and
     writes the commit message. It saves the prompt to $PROMPT_COPY."""
     path = directory / "agent.sh"
     path.write_text(f"""#!/bin/sh
 cat > "${{PROMPT_COPY:-/dev/null}}"
 case "$WORKPLAN_ACTION" in
-gen-task)
+task-gen)
     i=0
     while [ $i -lt {tasks} ]; do
         n=$(printf '%04d' $i)
@@ -118,7 +118,7 @@ gen-task)
         i=$((i + 1))
     done
     echo tasks defined;;
-gen-patch)
+patch-gen)
     {edit}
     echo "$WORKPLAN_TARGET Say goodbye" > "$WORKPLAN_COMMIT_MSG"
     echo agent finished;;
@@ -138,11 +138,11 @@ def planned(repo: Repo, tasks: int = 1, agent: Path | None = None) -> str:
     repo.write("app.txt", "hello\n")
     repo.commit_all("app")
     repo.wp("init")
-    repo.wp("add-workplan", "greeting", "-m", "app.txt says goodbye. Nothing else changes.")
+    repo.wp("new", "greeting", "-m", "app.txt says goodbye. Nothing else changes.")
     wid = repo.wid()
     if tasks:
         tmp = Path(tempfile.mkdtemp(prefix="workplan-agent-"))
-        repo.wp("gen-task", env=agent_env(agent or scripted_agent(tmp, tasks=tasks)))
+        repo.wp("task", "gen", env=agent_env(agent or scripted_agent(tmp, tasks=tasks)))
     return wid
 
 

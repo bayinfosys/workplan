@@ -1,8 +1,9 @@
 """The workplan commands, declared once for the CLI and for HTTP.
 
-Commands are verb-noun over three nouns, workplan, task and patch; see
-registry.py for how a declaration gives a CLI subcommand and an HTTP
-route. Each command returns data; its renderer gives the CLI's text.
+Commands are over three nouns, workplan, task and patch. On the CLI the
+workplan's commands are top-level verbs, as `new` and `merge`, and the
+others are noun then verb, as `task add`; see registry.py for how a
+declaration gives a CLI subcommand and an HTTP route. Each command returns data; its renderer gives the CLI's text.
 """
 
 import os
@@ -14,7 +15,8 @@ from workplan import __version__, agent, config, git, ops, plans, route, serve
 from workplan.git import Fail
 from workplan.registry import Flag, Positional, Registry
 
-registry = Registry("workplan", "Plan and record development work in git.", __version__)
+registry = Registry("workplan", "Plan and record development work in git.", __version__,
+                    top=("workplan",))
 
 WORKPLAN = Annotated[str, Positional("ID", "the workplan; the current one when left out",
                                      optional=True)]
@@ -150,7 +152,7 @@ def cmd_show_workplan(ctx, *, workplan: WORKPLAN = None):
                        "it is committed",
                   render=lambda r: f"switched to {r['branch']}\ncreated {r['created']}\n"
                   + committed(r))
-def cmd_add_workplan(ctx, *, name: Annotated[str, Positional("NAME", "lower-case words joined by -")],
+def cmd_new_workplan(ctx, *, name: Annotated[str, Positional("NAME", "lower-case words joined by -")],
                      goal: Annotated[str, Flag("the goal; skips the editor", short="-m")] = None):
     if not goal and not ctx.interactive:
         raise Fail("a new workplan needs a goal")
@@ -164,7 +166,7 @@ def cmd_edit_workplan(ctx, *, workplan: WORKPLAN = None,
     wid = plans.workplan_id(workplan)
     if text is None:
         if not ctx.interactive:
-            raise Fail("edit-workplan needs the text")
+            raise Fail("edit needs the text")
         return ops.edit_document(wid, "WORKPLAN.md")
     return ops.save_document(wid, "WORKPLAN.md", text)
 
@@ -210,7 +212,7 @@ def cmd_add_task(ctx, *, title: Annotated[str, Positional("TITLE", "the task's t
                  workplan: Annotated[str, Flag("the workplan; the current one when left out")] = None,
                  depend: Annotated[list[str], Flag("a task it depends on; repeat for more")] = None,
                  change: Annotated[str, Flag("the change; skips the editor", short="-m")] = None,
-                 reply: Annotated[str, Flag("a gen-task reply from a chat: a file, or - for "
+                 reply: Annotated[str, Flag("a task gen reply from a chat: a file, or - for "
                                             "standard input; its new tasks are added")] = None):
     wid = plans.workplan_id(workplan)
     if reply is not None:
@@ -223,7 +225,7 @@ def cmd_add_task(ctx, *, title: Annotated[str, Positional("TITLE", "the task's t
 def cmd_gen_task(ctx, *, workplan: WORKPLAN = None,
                  prompt: Annotated[bool, Flag("print the prompt for a chat; change nothing")] = False):
     if prompt:
-        return agent.prompt("gen-task", workplan)
+        return agent.prompt("task-gen", workplan)
     return agent.gen_task(workplan, ctx.cfg)
 
 
@@ -237,7 +239,7 @@ def cmd_edit_task(ctx, *, task: TASK,
     wid, nnnn = tid.split("/")
     if text is None:
         if not ctx.interactive:
-            raise Fail("edit-task needs the text")
+            raise Fail("task edit needs the text")
         return ops.edit_document(wid, f"{nnnn}/{doc}")
     return ops.save_document(wid, f"{nnnn}/{doc}", text)
 
@@ -271,7 +273,7 @@ def cmd_add_patch(ctx, *, task: TASK,
 def cmd_gen_patch(ctx, *, task: TASK,
                   prompt: Annotated[bool, Flag("print the prompt for a chat; change nothing")] = False):
     if prompt:
-        return agent.prompt("gen-patch", task)
+        return agent.prompt("patch-gen", task)
     return agent.gen_patch(task, ctx.cfg)
 
 

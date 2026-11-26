@@ -1,4 +1,4 @@
-"""gen-task and gen-patch: an agent's work in a worktree.
+"""task gen and patch gen: an agent's work in a worktree.
 
 workplan owns the worktree for every agent:
 
@@ -9,21 +9,21 @@ workplan owns the worktree for every agent:
 4. stage the worktree and keep its tree: the base of the patch
 5. render the prompt and run the adapter in the worktree
 6. bring the result back:
-   gen-patch  the diff from the base tree, output.patch and COMMIT_MSG
+   patch-gen  the diff from the base tree, output.patch and COMMIT_MSG
               left out, becomes output.patch, and COMMIT_MSG is copied
               out
-   gen-task   new task directories under workplans/<id>/ are copied
+   task-gen   new task directories under workplans/<id>/ are copied
               back, listed in WORKPLAN.md and committed
 7. remove the worktree
 
 An adapter is run(workdir, prompt, cfg, action, target) -> str, where
-action is gen-task (target: a workplan id) or gen-patch
+action is task-gen (target: a workplan id) or patch-gen
 (target: a task id). It changes files in workdir and returns the
 agent's final message:
 
-gen-patch  edit files, under workplans/ only where the task says so;
+patch-gen  edit files, under workplans/ only where the task says so;
            write the commit message to workplans/<task id>/COMMIT_MSG
-gen-task   write workplans/<id>/<nnnn>/TASK.md and BREAKDOWN.md for
+task-gen   write workplans/<id>/<nnnn>/TASK.md and BREAKDOWN.md for
            each new task
 
 none     completions from an OpenAI-compatible endpoint: the reply
@@ -34,7 +34,7 @@ none     completions from an OpenAI-compatible endpoint: the reply
 command  agent.command, else a preset, run in the worktree; a
          "{prompt}" argument is replaced by the prompt, else it goes on
          stdin; WORKPLAN_ACTION, WORKPLAN_TARGET and, for
-         gen-patch, WORKPLAN_COMMIT_MSG are set in its environment
+         patch-gen, WORKPLAN_COMMIT_MSG are set in its environment
 """
 
 import os
@@ -140,25 +140,25 @@ def in_worktree(wid: str, cfg: dict, work: Callable[[Path, str], dict],
 # ---------------------------------------------------------------------------
 
 def patch_prompt(tid: str, embed: bool, root: Path) -> str:
-    """The gen-patch prompt: with the files' contents for an agent
+    """The patch-gen prompt: with the files' contents for an agent
     without tools, with their paths for one with tools."""
     wid = tid.split("/")[0]
     directory = plans.ROOT / tid
     files = [plans.ROOT / "PRINCIPLES.md", plans.plan_path(wid),
              *(directory / f for f in TASK_FILES)]
     return plans.render(
-        "prompts", "gen-patch-none.md" if embed else "gen-patch.md",
+        "prompts", "patch-gen-none.md" if embed else "patch-gen.md",
         id=tid, workplan=wid, commit_msg=str(directory / "COMMIT_MSG"),
         context=context(files, root, embed=embed),
     )
 
 
 def task_prompt(wid: str, embed: bool, root: Path) -> str:
-    """The gen-task prompt, in the same two forms."""
+    """The task-gen prompt, in the same two forms."""
     files = [plans.ROOT / "PRINCIPLES.md", plans.plan_path(wid),
              *(plans.ROOT / wid / n / f for n in plans.task_dirs(wid) for f in TASK_FILES)]
     return plans.render(
-        "prompts", "gen-task-none.md" if embed else "gen-task.md",
+        "prompts", "task-gen-none.md" if embed else "task-gen.md",
         id=wid, next=plans.next_number(wid),
         task_template=plans.template_text("documents", "TASK.md"),
         breakdown_template=plans.template_text("documents", "BREAKDOWN.md"),
@@ -169,7 +169,7 @@ def task_prompt(wid: str, embed: bool, root: Path) -> str:
 def prompt(action: str, target: str | None) -> dict:
     """The prompt the none agent would send, from this tree, to paste
     into a chat. Nothing changes."""
-    if action == "gen-patch":
+    if action == "patch-gen":
         tid = plans.task_id(target)
         if not (plans.ROOT / tid / "TASK.md").is_file():
             raise Fail(f"{plans.ROOT / tid}/TASK.md: not found")
@@ -180,7 +180,7 @@ def prompt(action: str, target: str | None) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# gen-patch and add-patch
+# patch gen, and patch add with a reply
 # ---------------------------------------------------------------------------
 
 def patch_task(task: str) -> str:
@@ -216,7 +216,7 @@ def gen_patch(task: str, cfg: dict) -> dict:
     name, adapter = adapter_for(cfg)
 
     def work(workdir: Path, base: str) -> dict:
-        report = adapter(workdir, patch_prompt(tid, name == "none", workdir), cfg, "gen-patch", tid)
+        report = adapter(workdir, patch_prompt(tid, name == "none", workdir), cfg, "patch-gen", tid)
         return capture(workdir, tid, report, base)
 
     result = keep_patch(tid, in_worktree(tid.split("/")[0], cfg, work))
@@ -252,7 +252,7 @@ def commit_message(path: Path, tid: str) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# gen-task and add-task with a reply
+# task gen, and task add with a reply
 # ---------------------------------------------------------------------------
 
 def keep_tasks(wid: str, documents: dict[str, dict[str, str]]) -> list[str]:
@@ -282,12 +282,12 @@ def gen_task(arg: str | None, cfg: dict) -> dict:
     branch = plans.branch_of(wid)
     plan_file = _need_plan(wid)
     if git.branch() != branch:
-        raise Fail(f"gen-task commits on {branch}; switch to it first")
+        raise Fail(f"task gen commits on {branch}; switch to it first")
     name, adapter = adapter_for(cfg)
     existing = set(plans.task_dirs(wid))
 
     def work(workdir: Path, base: str) -> dict:
-        report = adapter(workdir, task_prompt(wid, name == "none", workdir), cfg, "gen-task", wid)
+        report = adapter(workdir, task_prompt(wid, name == "none", workdir), cfg, "task-gen", wid)
         base = workdir / plans.ROOT / wid
         new = sorted(p.name for p in base.iterdir()
                      if p.is_dir() and plans.NNNN.fullmatch(p.name) and p.name not in existing)
@@ -309,8 +309,8 @@ def gen_task(arg: str | None, cfg: dict) -> dict:
 
 
 def add_tasks(wid: str, reply: str) -> dict:
-    """A gen-task reply in the none agent's form, pasted from a chat: its
-    new tasks are written, listed and committed, as gen-task does."""
+    """A task gen reply in the none agent's form, pasted from a chat: its
+    new tasks are written, listed and committed, as task gen does."""
     if not ops.editable(wid):
         raise Fail(f"{wid} is editable only on {plans.branch_of(wid)}")
     _need_plan(wid)
@@ -410,7 +410,7 @@ def run_none(workdir: Path, prompt: str, cfg: dict, action: str, target: str) ->
     agent = cfg["agent"]
     messages = [{"role": "user", "content": prompt}]
     attempts = max(1, int(agent["attempts"]))
-    use = use_patch if action == "gen-patch" else use_files
+    use = use_patch if action == "patch-gen" else use_files
     error = ""
 
     for _ in range(attempts):
@@ -445,7 +445,7 @@ def run_command(workdir: Path, prompt: str, cfg: dict, action: str, target: str,
         stdin = None
 
     env = {**os.environ, "WORKPLAN_ACTION": action, "WORKPLAN_TARGET": target}
-    if action == "gen-patch":
+    if action == "patch-gen":
         env["WORKPLAN_COMMIT_MSG"] = str(plans.ROOT / target / "COMMIT_MSG")
     try:
         result = subprocess.run(argv, cwd=workdir, input=stdin, capture_output=True, text=True,

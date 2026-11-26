@@ -7,8 +7,8 @@ trailer completes a workplan.
 Actions:
 complete: a workplan reached master
 review: code changed under a task, so it needs checking against the task
-gen-patch: a task definition changed, so its patch needs producing
-gen-task: the workplan changed, so its tasks need defining
+patch-gen: a task definition changed, so its patch needs producing
+task-gen: the workplan changed, so its tasks need defining
 none: nothing to do
 
 Branch: $branch

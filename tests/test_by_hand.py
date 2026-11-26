@@ -76,9 +76,9 @@ class ByHand(unittest.TestCase):
     def test_accept(self):
         wid = self.both_planned()
         for repo in (self.tool, self.hand):
-            repo.wp("gen-patch", "0000", env=self.env)
+            repo.wp("patch", "gen", "0000", env=self.env)
             repo.write(f"workplans/{wid}/0000/NOTES.md", "# Notes\n")
-        self.tool.wp("accept-patch", "0000")
+        self.tool.wp("patch", "accept", "0000")
         self.hand.sh(f"w={wid}; t=workplans/$w/0000\n"
                      "git apply --index $t/output.patch\n"
                      "git add $t workplans/$w/WORKPLAN.md\n"
@@ -88,23 +88,23 @@ class ByHand(unittest.TestCase):
     def test_reject(self):
         wid = self.both_planned()
         for repo in (self.tool, self.hand):
-            repo.wp("gen-patch", "0000", env=self.env)
-            repo.wp("apply-patch", "0000")
-        self.tool.wp("reject-patch", "0000")
+            repo.wp("patch", "gen", "0000", env=self.env)
+            repo.wp("patch", "apply", "0000")
+        self.tool.wp("patch", "reject", "0000")
         self.hand.sh(f"git apply --index -R workplans/{wid}/0000/output.patch")
         self.assertEqual(self.tool.git("status", "--porcelain"),
                          self.hand.git("status", "--porcelain"))
 
     def test_gen_patch(self):
         wid = self.both_planned()
-        self.tool.wp("gen-patch", "0000", env=self.env)
+        self.tool.wp("patch", "gen", "0000", env=self.env)
         wt = Path(self.tmp.name) / "wt"
         self.hand.sh(
             f"w={wid}; t=$w/0000\n"
             f"git worktree add -q --detach {wt} workplan/$w/definition\n"
             f"cp -r workplans {wt}/\n"
             f"git -C {wt} add -A && base=$(git -C {wt} write-tree)\n"
-            f"( cd {wt} && WORKPLAN_ACTION=gen-patch WORKPLAN_TARGET=$t "
+            f"( cd {wt} && WORKPLAN_ACTION=patch-gen WORKPLAN_TARGET=$t "
             f"WORKPLAN_COMMIT_MSG=workplans/$t/COMMIT_MSG {self.agent} < /dev/null > /dev/null )\n"
             "x=':(exclude)workplans/*/*/output.patch'; y=':(exclude)workplans/*/*/COMMIT_MSG'\n"
             f"git -C {wt} add -A -- . \"$x\" \"$y\"\n"
@@ -118,8 +118,8 @@ class ByHand(unittest.TestCase):
 
     def test_status(self):
         wid = planned(self.tool, tasks=2, agent=scripted_agent(Path(self.tmp.name), tasks=2))
-        self.tool.wp("gen-patch", "0000", env=self.env)
-        self.tool.wp("accept-patch", "0000")
+        self.tool.wp("patch", "gen", "0000", env=self.env)
+        self.tool.wp("patch", "accept", "0000")
         data = json.loads(self.tool.wp("status", "--json").stdout)
         states = {t["id"]: (t["state"], t["detail"]) for t in data["tasks"]}
 
@@ -133,10 +133,10 @@ class ByHand(unittest.TestCase):
     def test_merge(self):
         wid = self.both_planned()
         for repo in (self.tool, self.hand):
-            repo.wp("gen-patch", "0000", env=self.env)
-            repo.wp("accept-patch", "0000")
+            repo.wp("patch", "gen", "0000", env=self.env)
+            repo.wp("patch", "accept", "0000")
 
-        self.tool.wp("merge-workplan")
+        self.tool.wp("merge")
         msg = Path(self.tmp.name) / "msg"
         self.hand.sh(
             f"w={wid}; b=workplan/$w/definition\n"

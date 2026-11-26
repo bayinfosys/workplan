@@ -8,16 +8,20 @@ workplan's first commit.
 ## Item commands
 
 Items as the fourth noun: an item on the backlog becomes a workplan, a
-workplan becomes tasks, a task becomes a patch.
+workplan becomes tasks, a task becomes a patch. Written in the noun
+and verb form of 2026-11-25-command-groups.
 
-- list-item, show-item, add-item, edit-item and drop-item over the
-  `## ` headings of BACKLOG.md; an item's name comes from its heading
-- add-workplan --item NAME fills the WORKPLAN.md template from the
-  item, and the item leaves BACKLOG.md in the workplan's first commit
-- a Backlog view in the page: a card per item, opening its text, with
-  Start
-- how an edit to BACKLOG.md is committed: by edit-item, or by the next
-  workplan to start
+- item list, item show, item add, item edit and item drop over the
+  `## ` headings of BACKLOG.md; an item's name is its heading as a
+  slug, "Item commands" as item-commands
+- item add, item edit and item drop commit BACKLOG.md, as the other
+  commands commit what they change
+- they edit BACKLOG.md on the checked-out branch, and no other
+- new --item NAME fills the WORKPLAN.md template from the
+  item, names the workplan after it, and removes the item from
+  BACKLOG.md in the workplan's first commit
+- a Backlog column on the board: a card per item, opening its text,
+  with Start
 - README and SPEC describe the chain from item to patch
 
 ## gen-workplan
@@ -26,9 +30,10 @@ The agent expands an item into WORKPLAN.md, as gen-task expands a
 workplan into tasks: goal, context, findings and decisions, from the
 item and the current state of the project.
 
-- gen-workplan NAME, with --prompt for a chat, and its route
+- gen NAME, a top-level verb as new is, with --prompt for a chat,
+  and its route
 - the item leaves BACKLOG.md in the workplan's first commit, as with
-  add-workplan --item
+  new --item
 - a Start with the agent button beside Start in the Backlog view
 
 ## gen-prompts

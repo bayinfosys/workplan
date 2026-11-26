@@ -51,7 +51,7 @@ class Endpoint(unittest.TestCase):
             f"===== workplans/{wid}/WORKPLAN.md =====\nignored\n"
             "===== app.txt =====\nignored\n"
         ])
-        self.repo.wp("gen-task", env=self.none_env(endpoint))
+        self.repo.wp("task", "gen", env=self.none_env(endpoint))
         self.assertEqual(self.repo.read(f"workplans/{wid}/0000/BREAKDOWN.md"),
                          "# Breakdown\n\n1. Append goodbye.\n")
         self.assertIn("0000  Say goodbye", self.repo.read(f"workplans/{wid}/WORKPLAN.md"))
@@ -63,7 +63,7 @@ class Endpoint(unittest.TestCase):
     def test_none_agent(self):
         wid = planned(self.repo)
         endpoint = self.endpoint([f"{wid}/0000 Say goodbye\n\n```diff\n{DIFF}```\n"])
-        self.repo.wp("gen-patch", "0000", env=self.none_env(endpoint))
+        self.repo.wp("patch", "gen", "0000", env=self.none_env(endpoint))
 
         self.assertEqual(self.repo.read(f"workplans/{wid}/0000/COMMIT_MSG"),
                          f"{wid}/0000 Say goodbye\n")
@@ -81,7 +81,7 @@ class Endpoint(unittest.TestCase):
             f"{wid}/0000 Say goodbye\n\n```diff\n{BAD_DIFF}```\n",
             f"{wid}/0000 Say goodbye\n\n```diff\n{DIFF}```\n",
         ])
-        self.repo.wp("gen-patch", "0000", env=self.none_env(endpoint))
+        self.repo.wp("patch", "gen", "0000", env=self.none_env(endpoint))
         self.assertEqual(len(endpoint.requests), 2)
         retry = endpoint.requests[1]["body"]["messages"]
         self.assertEqual(len(retry), 3)
@@ -90,7 +90,7 @@ class Endpoint(unittest.TestCase):
     def test_none_agent_gives_up(self):
         planned(self.repo)
         endpoint = self.endpoint(["no diff here"] * 3)
-        result = self.repo.wp("gen-patch", "0000", env=self.none_env(endpoint), ok=False)
+        result = self.repo.wp("patch", "gen", "0000", env=self.none_env(endpoint), ok=False)
         self.assertIn("3 attempts", result.stderr)
 
     def classify(self, answer: str) -> str:
@@ -103,24 +103,24 @@ class Endpoint(unittest.TestCase):
     def test_classifier_chooses(self):
         wid = planned(self.repo)
         out = self.classify("none")
-        self.assertTrue(out.startswith("none | route: llm chose none; the rules chose gen-patch"),
+        self.assertTrue(out.startswith("none | route: llm chose none; the rules chose patch-gen"),
                         out)
 
     def test_classifier_falls_back_without_targets(self):
         wid = planned(self.repo)
         out = self.classify("review")
-        self.assertTrue(out.startswith(f"gen-patch {wid}/0000 | "), out)
-        self.assertIn("rules chose gen-patch", out)
+        self.assertTrue(out.startswith(f"patch-gen {wid}/0000 | "), out)
+        self.assertIn("rules chose patch-gen", out)
 
     def test_classifier_falls_back_on_nonsense(self):
         wid = planned(self.repo)
         out = self.classify("I am not sure")
-        self.assertTrue(out.startswith(f"gen-patch {wid}/0000 | "), out)
+        self.assertTrue(out.startswith(f"patch-gen {wid}/0000 | "), out)
 
     def test_classifier_picks_another_action_with_targets(self):
         wid = planned(self.repo)
-        out = self.classify("gen-task")
-        self.assertTrue(out.startswith(f"gen-task {wid} | route: llm chose gen-task"), out)
+        out = self.classify("task-gen")
+        self.assertTrue(out.startswith(f"task-gen {wid} | route: llm chose task-gen"), out)
 
 
 if __name__ == "__main__":

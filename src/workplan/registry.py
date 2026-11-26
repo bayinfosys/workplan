@@ -8,14 +8,16 @@ takes a context and keyword-only parameters, and returns data.
     def cmd_accept_patch(ctx, *, task: Annotated[str, Positional("[ID/]NNNN")]):
         ...
 
-The CLI name is `verb-noun`. Each parameter is `Positional` or `Flag`
+On the CLI a command is `noun verb`, as `task add`; a command with no
+noun, or whose noun is one of the registry's top nouns, is `verb`
+alone, as `init` or `merge`. Each parameter is `Positional` or `Flag`
 on the CLI. Over HTTP a parameter comes from the route when the route
 names it, else from the query string for GET and DELETE, else from the
 JSON body. The verb gives the HTTP method and the route:
 
     list      GET     the noun's collection
     show      GET     the item
-    add       POST    the collection
+    add, new  POST    the collection
     gen       POST    the collection, then /gen
     edit      PUT     the item
     drop      DELETE  the item
@@ -73,6 +75,7 @@ class Command:
     help: str
     parameters: list[Parameter]
     aliases: tuple[str, ...] = ()
+    words: tuple[str, ...] = ()
     render: Callable[[Any], str] | None = None
     cli_only: bool = False
     method: str = ""
@@ -83,7 +86,8 @@ class Command:
 def http_of(verb: str, noun: str | None) -> tuple[str, str]:
     """The method and route a verb and noun give."""
     if noun not in NOUNS:
-        raise ValueError(f"no route for {verb}-{noun}: give route= or cli_only=True")
+        name = " ".join(w for w in (noun, verb) if w)
+        raise ValueError(f"no route for {name}: give route= or cli_only=True")
     collection, item = NOUNS[noun]
     collection = collection or item
     match verb:
@@ -91,7 +95,7 @@ def http_of(verb: str, noun: str | None) -> tuple[str, str]:
             return "GET", collection
         case "show":
             return "GET", item
-        case "add":
+        case "add" | "new":
             return "POST", collection
         case "gen":
             return "POST", collection + "/gen"
@@ -130,10 +134,12 @@ def convert(kind: type, value: Any, name: str) -> Any:
 
 
 class Registry:
-    def __init__(self, prog: str, description: str = "", version: str = ""):
+    def __init__(self, prog: str, description: str = "", version: str = "",
+                 top: tuple[str, ...] = ()):
         self.prog = prog
         self.description = description
         self.version = version
+        self.top = top
         self.commands: list[Command] = []
 
     # -- declaring ----------------------------------------------------------
@@ -144,7 +150,8 @@ class Registry:
         def register(function: Callable) -> Callable:
             words = function.__name__.removeprefix("cmd_").split("_")
             verb, noun = words[0], "_".join(words[1:]) or None
-            name = f"{verb}-{noun}" if noun else verb
+            cli = (verb,) if noun is None or noun in self.top else (noun, verb)
+            name = " ".join(cli)
 
             hints = get_type_hints(function, include_extras=True)
             parameters = []
@@ -159,7 +166,8 @@ class Registry:
                 default = None if p.default is p.empty else p.default
                 parameters.append(Parameter(p.name, kind, spec, default))
 
-            command = Command(name, function, help, parameters, tuple(aliases), render, cli_only)
+            command = Command(name, function, help, parameters, tuple(aliases), cli, render,
+                              cli_only)
             if not cli_only:
                 command.method, command.route = (method, route) if route else http_of(verb, noun)
                 command.pattern = compile_route(command.route)
@@ -173,30 +181,46 @@ class Registry:
         parser = argparse.ArgumentParser(prog=self.prog, description=self.description)
         if self.version:
             parser.add_argument("--version", action="version", version=f"{self.prog} {self.version}")
-        sub = parser.add_subparsers(dest="command", required=True, metavar="command")
+        top = parser.add_subparsers(dest="command", required=True, metavar="command")
+        groups: dict[str, argparse._SubParsersAction] = {}
         for command in self.commands:
-            p = sub.add_parser(command.name, aliases=list(command.aliases), help=command.help,
-                               description=command.help)
-            p.set_defaults(_command=command)
-            p.add_argument("--json", action="store_true", help="print the result as JSON")
-            for param in command.parameters:
-                spec = param.spec
-                if isinstance(spec, Positional):
-                    optional = spec.optional or param.default is not None
-                    nargs = ("*" if optional else "+") if spec.many else ("?" if optional else None)
-                    p.add_argument(param.name, nargs=nargs, default=param.default,
-                                   metavar=spec.metavar or param.name.upper(), help=spec.help)
-                    continue
-                names = [f"--{param.name.replace('_', '-')}"] + ([spec.short] if spec.short else [])
-                if param.kind is bool:
-                    p.add_argument(*names, dest=param.name, action="store_true", help=spec.help)
-                elif get_origin(param.kind) is list:
-                    p.add_argument(*names, dest=param.name, action="append",
-                                   default=param.default, help=spec.help)
-                else:
-                    p.add_argument(*names, dest=param.name, type=param.kind,
-                                   default=param.default, help=spec.help)
+            if len(command.words) == 1:
+                self.add_parser(top, command.words[0], command)
+            else:
+                noun, verb = command.words
+                if noun not in groups:
+                    group = top.add_parser(noun, help=f"{noun} commands",
+                                           description=f"{noun} commands")
+                    groups[noun] = group.add_subparsers(dest="verb", required=True,
+                                                        metavar="verb")
+                self.add_parser(groups[noun], verb, command)
+            for alias in command.aliases:
+                self.add_parser(top, alias, command, f"{command.name}: {command.help}")
         return parser
+
+    @staticmethod
+    def add_parser(sub, name: str, command: Command, help: str = "") -> None:
+        help = help or command.help
+        p = sub.add_parser(name, help=help, description=help)
+        p.set_defaults(_command=command)
+        p.add_argument("--json", action="store_true", help="print the result as JSON")
+        for param in command.parameters:
+            spec = param.spec
+            if isinstance(spec, Positional):
+                optional = spec.optional or param.default is not None
+                nargs = ("*" if optional else "+") if spec.many else ("?" if optional else None)
+                p.add_argument(param.name, nargs=nargs, default=param.default,
+                               metavar=spec.metavar or param.name.upper(), help=spec.help)
+                continue
+            names = [f"--{param.name.replace('_', '-')}"] + ([spec.short] if spec.short else [])
+            if param.kind is bool:
+                p.add_argument(*names, dest=param.name, action="store_true", help=spec.help)
+            elif get_origin(param.kind) is list:
+                p.add_argument(*names, dest=param.name, action="append",
+                               default=param.default, help=spec.help)
+            else:
+                p.add_argument(*names, dest=param.name, type=param.kind,
+                               default=param.default, help=spec.help)
 
     def run_cli(self, argv: list[str] | None,
                 context: Callable[[], Any]) -> tuple[Command, str]:

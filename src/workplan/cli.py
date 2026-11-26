@@ -9,7 +9,7 @@ import sys
 from workplan.commands import cli_context, registry
 from workplan.git import Fail
 
-PAGED = ("show-patch",)
+PAGED = ("patch show",)
 
 
 def page(text: str) -> None:
