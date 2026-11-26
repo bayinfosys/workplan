@@ -17,4 +17,6 @@ Effects:
 - the wheel holds src/workplan/web/
 - README.md has a section on serve, and the commands table a row
 
-Depends on 0000, 0001.
+Depends: 0000, 0001
+Change: feat
+Audience: users

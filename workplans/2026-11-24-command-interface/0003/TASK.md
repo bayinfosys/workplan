@@ -14,4 +14,6 @@ Effects:
   merge-workplan with show
 - the page behaves as before
 
-Depends on 0002.
+Depends: 0002
+Change: refactor
+Audience: developers

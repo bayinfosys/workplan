@@ -17,4 +17,7 @@ Effects:
 - SPEC.md sections 4 and 10, and README.md's Agents and Routing
   sections, use the names
 
-Depends on 0001.
+Depends: 0001
+Change: refactor
+Audience: developers
+Breaking: the route actions and WORKPLAN_ACTION define-tasks and produce-patch are now gen-task and gen-patch, and the prompt templates are renamed to match

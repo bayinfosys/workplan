@@ -13,4 +13,6 @@ Effects:
 - a task with no COMMIT_MSG shows `(none)` in its place
 - README.md's walkthrough and command table describe the header
 
-Depends on none.
+Depends: none
+Change: feat
+Audience: users

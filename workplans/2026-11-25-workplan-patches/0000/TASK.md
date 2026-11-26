@@ -17,4 +17,6 @@ Effects:
   section and SPEC.md section 11, with its by-hand block, describe the
   base tree
 
-Depends on none.
+Depends: none
+Change: feat
+Audience: users

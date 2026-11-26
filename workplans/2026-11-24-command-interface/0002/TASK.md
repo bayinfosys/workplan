@@ -16,4 +16,6 @@ Effects:
 - CLI-only commands answer 404 over HTTP
 - tests/test_serve.py drives the new routes
 
-Depends on 0001.
+Depends: 0001
+Change: refactor
+Audience: developers

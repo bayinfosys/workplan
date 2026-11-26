@@ -18,4 +18,6 @@ Effects:
   and the header the same beside Gen task
 - README.md describes manual mode with a chat
 
-Depends on 0003, 0005.
+Depends: 0003, 0005
+Change: feat
+Audience: users

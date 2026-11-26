@@ -16,4 +16,6 @@ Effects:
 - section 5's by-hand block shows the item removed from BACKLOG.md
 - README.md's walkthrough mentions BACKLOG.md as the place work starts
 
-Depends on 0003.
+Depends: 0003
+Change: docs
+Audience: users

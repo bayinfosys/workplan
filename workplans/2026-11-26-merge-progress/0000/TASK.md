@@ -14,4 +14,6 @@ Effects:
 - over HTTP, the result is as now, with nothing printed
 - with test.command empty, nothing is printed
 
-Depends on none.
+Depends: none
+Change: feat
+Audience: users

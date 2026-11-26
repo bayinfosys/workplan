@@ -15,4 +15,6 @@ Effects:
 - `ops.merge_message(id, master)` returns the message `merge` would
   open in the editor
 
-Depends on 0000.
+Depends: 0000
+Change: feat
+Audience: users

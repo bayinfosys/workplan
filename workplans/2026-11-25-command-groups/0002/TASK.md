@@ -14,4 +14,6 @@ Effects:
 - the routing section says dispatch.sh maps task-gen and patch-gen to
   `workplan task gen` and `workplan patch gen`
 
-Depends on 0000, 0001.
+Depends: 0000, 0001
+Change: docs
+Audience: users

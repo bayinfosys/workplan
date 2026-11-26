@@ -22,4 +22,6 @@ Effects:
   command is `python -m unittest discover -s tests -q`
 - README.md's configuration table and merge row name it
 
-Depends on none.
+Depends: none
+Change: feat
+Audience: users

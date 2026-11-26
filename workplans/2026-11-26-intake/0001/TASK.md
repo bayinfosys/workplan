@@ -12,4 +12,6 @@ Effects:
 - a task listed under Dropped is refused in the same way
 - listed tasks are accepted as now
 
-Depends on none.
+Depends: none
+Change: fix
+Audience: users
