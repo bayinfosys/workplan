@@ -38,6 +38,13 @@ class Trailers(unittest.TestCase):
                          ["w/0000", "w/0002"])
         self.assertEqual(plans.depends_of(TASK + "Depends: none\nChange: fix\n", "w"), [])
 
+    def test_the_template_ends_with_a_block(self):
+        text = plans.render("documents", "TASK.md", id="w/0001", title="A task",
+                            depends="0000", change="The change.")
+        keys = [k for k, _ in plans.trailers(text)]
+        self.assertEqual(keys, ["Depends", "Change", "Audience", "Breaking"])
+        self.assertEqual(plans.depends_of(text, "w"), ["w/0000"])
+
     def test_depends_from_the_sentence(self):
         self.assertEqual(plans.depends_of(TASK + "Depends on 0001, 0003.\n", "w"),
                          ["w/0001", "w/0003"])

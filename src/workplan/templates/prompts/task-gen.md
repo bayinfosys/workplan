@@ -15,7 +15,11 @@ that each depends only on tasks before it.
 For each new task, numbered from $next upwards, write two files.
 
 workplans/$id/<nnnn>/TASK.md, in this form, with each $$name and each
-<...> replaced; "Depends on" names earlier task numbers, or "none":
+<...> replaced. It ends with a block of trailer lines: Depends names
+earlier task numbers, or none; Change is one of feat, fix, docs,
+refactor, test or chore; Audience is users, developers or internal;
+Breaking says what the change breaks, and is left out when nothing
+breaks:
 
 $task_template
 workplans/$id/<nnnn>/BREAKDOWN.md, in this form:

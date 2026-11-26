@@ -139,8 +139,8 @@ A task listed under `## Dropped` is closed without a commit.
 
 ### TASK.md
 
-One change and its effects. The first line is the title. One line
-names the tasks it depends on, by number, or `none`:
+One change and its effects. The first line is the title. The last
+paragraph is a block of git trailers, one `Key: value` line each:
 
 ```markdown
 # <title>
@@ -151,8 +151,26 @@ Effects:
 
 - <what holds once the change is applied>
 
-Depends on 0000, 0002.
+Depends: 0000, 0002
+Change: feat
+Audience: users
+Breaking: wp add-task is now wp task add
 ```
+
+| Key | Value |
+|---|---|
+| `Depends` | the tasks it depends on, by number, or `none` |
+| `Change` | `feat`, `fix`, `docs`, `refactor`, `test` or `chore` |
+| `Audience` | `users`, `developers` or `internal` |
+| `Breaking` | what the change breaks, in a sentence; left out when nothing breaks |
+| `Refs`, `Fixes` | optional: a link or issue; the task or commit a fix repairs |
+
+The values are hints: tools read the first word of `Change` and
+`Audience` when it is one of the words above, and leave anything else
+to a reader or a model. Older tasks end with a sentence, "Depends on
+0000, 0002.", which is read when there is no `Depends` trailer. By
+hand, `git interpret-trailers --parse TASK.md` prints the block, and
+`grep '^Change:' workplans/<id>/*/TASK.md` lists the kinds.
 
 A task changes the project: its code, its documentation or its build.
 It needs no further decisions before work starts.
@@ -301,7 +319,7 @@ marker files. The first state that holds is the state:
 | `dropped` | WORKPLAN.md lists the task under `## Dropped` |
 | `testing` | output.patch is in the index or the tree, uncommitted |
 | `development` | output.patch exists and would apply |
-| `waiting` | output.patch does not apply, and a task on its `Depends on` line is not committed |
+| `waiting` | output.patch does not apply, and a task named by its `Depends` trailer is not committed |
 | `stale` | output.patch does not apply, and every task it depends on is committed: produce it again |
 | `refinement` | TASK.md exists, with no patch |
 | `unspecified` | WORKPLAN.md lists the task, with no directory |

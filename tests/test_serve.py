@@ -84,7 +84,7 @@ class Serve(unittest.TestCase):
                                                        "depend": ["0000"]})
         self.assertEqual(added["task"], f"{wid}/0001")
         added = self.ok(f"/api/task/{wid}/0001")
-        self.assertIn("Depends on 0000.", added["documents"]["TASK.md"])
+        self.assertIn("Depends: 0000\n", added["documents"]["TASK.md"])
         code, reply = self.call(f"/api/task/{wid}/0000/app.txt", {"text": "x"}, method="PUT")
         self.assertEqual(code, 400)
         self.assertIn("not a workplan document", reply["error"])
