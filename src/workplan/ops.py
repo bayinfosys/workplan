@@ -11,6 +11,7 @@ import re
 import stat
 import subprocess
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from workplan import git, plans
@@ -478,7 +479,7 @@ def merge_message(arg: str | None, master: str) -> str:
 
 
 def merge(arg: str | None, master: str, edit: bool = True, message: str | None = None,
-          test_command: str = "") -> dict:
+          test_command: str = "", on_test: Callable[[str], None] | None = None) -> dict:
     """Squash workplan/<id>/definition into master. The message is the
     one given, or the SQUASH_COMMIT_MSG template rendered and opened in
     the editor, as git commit does.
@@ -492,6 +493,10 @@ def merge(arg: str | None, master: str, edit: bool = True, message: str | None =
     wid = plans.workplan_id(arg)
     branch = ready_to_merge(wid, master)
     if test_command:
+        if git.branch() != branch:
+            raise Fail(f"switch to {branch} to run test.command")
+        if on_test:
+            on_test(test_command)
         run_tests(test_command, branch)
 
     text = message if message is not None else squash_message(wid, master, branch)

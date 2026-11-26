@@ -187,8 +187,12 @@ def cmd_merge_workplan(ctx, *, workplan: WORKPLAN = None,
                        show: Annotated[bool, Flag("print the message; merge nothing")] = False):
     if show:
         return {"message": ops.merge_message(workplan, ctx.master)}
+    def running(command: str) -> None:
+        print(f"running test.command: {command}", file=sys.stderr, flush=True)
+
     return ops.merge(workplan, ctx.master, edit=ctx.interactive, message=message,
-                     test_command=ctx.cfg["test"]["command"])
+                     test_command=ctx.cfg["test"]["command"],
+                     on_test=running if ctx.interactive else None)
 
 
 # ---------------------------------------------------------------------------
