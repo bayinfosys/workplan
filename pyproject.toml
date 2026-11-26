@@ -27,7 +27,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/bayinfosys/workplan"
 Repository = "https://github.com/bayinfosys/workplan"
-Specification = "https://github.com/bayinfosys/workplan/blob/master/SPEC.md"
+Protocol = "https://github.com/bayinfosys/workplan/blob/master/PROTOCOL.md"
 Issues = "https://github.com/bayinfosys/workplan/issues"
 "Bay Information Systems" = "https://www.bayis.co.uk/"
 

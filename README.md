@@ -8,7 +8,8 @@ workplan reaches master as one squash commit listing every task. The
 plans and the task definitions are Markdown files in `workplans/`, and
 every task's state comes from git history. Any clone holds the whole
 record, and every step can be done by hand with git and an editor:
-[SPEC.md](SPEC.md) describes the steps.
+[PROTOCOL.md](PROTOCOL.md) defines the protocol and gives each step as
+git commands.
 
 An agent, such as Claude Code, Codex, or a model behind any
 OpenAI-compatible endpoint, defines the tasks and produces each task's
@@ -31,14 +32,14 @@ command line, also installs `wp`; where both are installed, use
 
 Run it on full auto for the real vibe coding experience, or manual for the good old days.
 
-- **Manual:** git and an editor. [SPEC.md](SPEC.md) gives every step by hand; the `workplan` command is optional.
+- **Manual:** git and an editor. [PROTOCOL.md](PROTOCOL.md) gives every step as git commands; the `workplan` command is optional.
 - **Semi-automatic:** run each command; Agents define tasks and produce patches; you read the diffs and accept or reject.
 - **Full auto:** `workplan install` adds hooks that route each commit
   to its next step, and `route.dispatch` runs `task gen` and
   `patch gen` as soon as they are due. Accepting each patch and
   merging stay with you.
 
-Every step can be done by hand; SPEC.md gives each as git commands.
+Every step can be done by hand; PROTOCOL.md gives each as git commands.
 Most steps are several git operations in a fixed order: `patch accept`
 applies the patch, checks COMMIT_MSG and commits it with the task's
 files; `merge` runs the tests, squashes, commits and deletes the
@@ -106,45 +107,41 @@ scripted agent.
 
 ## Commands
 
-The workplan, and the commands with no noun:
+Protocol commands change the repository in the protocol's terms; each
+links to its git commands in PROTOCOL.md.
 
 | Command | Does |
 |---|---|
-| `init` | create `workplans/` with README, PRINCIPLES.md, BACKLOG.md, config.toml and dispatch.sh; add the working files to .gitignore; commit |
+| [`init`](PROTOCOL.md#wp-init) | create `workplans/` with README, PRINCIPLES.md, BACKLOG.md, config.toml and dispatch.sh; add the working files to .gitignore; commit |
+| [`new NAME [-m GOAL \| --reply FILE]`](PROTOCOL.md#wp-new) | `workplans/<date>-NAME/WORKPLAN.md` from its template, or the whole file given, on a new branch from master; commit |
+| [`edit [ID]`](PROTOCOL.md#wp-edit) | WORKPLAN.md in the editor; commit |
+| [`merge [ID] [-m MESSAGE] [--show]`](PROTOCOL.md#wp-merge) | run `test.command` and stop if it fails; squash the workplan into master, with the message from its template; `--show` prints the message |
+| [`task add TITLE [--depend N] [-m CHANGE]`](PROTOCOL.md#wp-task-add) | the next task's TASK.md and BREAKDOWN.md from their templates, and its line in WORKPLAN.md; the editor opens on TASK.md; commit |
+| `task add --reply FILE` | the new tasks in a `task gen` reply from a chat; `-` reads standard input; commit |
+| [`task gen [ID] [--prompt]`](PROTOCOL.md#wp-task-gen) | the agent writes each new task's TASK.md and BREAKDOWN.md; they are listed in WORKPLAN.md and committed with it; `--prompt` prints the prompt for a chat |
+| [`task edit NNNN [--doc NAME]`](PROTOCOL.md#wp-task-edit) | TASK.md, BREAKDOWN.md or NOTES.md in the editor; commit |
+| [`task drop NNNN`](PROTOCOL.md#wp-task-drop) | move the task to `## Dropped` in WORKPLAN.md and commit WORKPLAN.md |
+| [`patch add NNNN [FILE]`](PROTOCOL.md#wp-patch-add) | a reply from a chat, with its commit message line and diff, becomes output.patch and COMMIT_MSG; standard input when FILE is left out |
+| [`patch gen NNNN [--prompt]`](PROTOCOL.md#wp-patch-gen) | the agent writes output.patch and COMMIT_MSG; `--prompt` prints the prompt for a chat |
+| [`patch apply NNNN`](PROTOCOL.md#wp-patch-apply) | stage the patch in the tree and the index |
+| [`patch accept NNNN`](PROTOCOL.md#wp-patch-accept) | commit the patch with COMMIT_MSG, together with the task's directory and WORKPLAN.md |
+| [`patch reject NNNN`](PROTOCOL.md#wp-patch-reject) | take an applied patch back out |
+| [`patch drop NNNN`](PROTOCOL.md#wp-patch-drop) | delete an unapplied output.patch and its COMMIT_MSG |
+
+Supporting commands read git or run the library; they change nothing
+in the protocol.
+
+| Command | Does |
+|---|---|
 | `list` | every workplan, in the tree or on another branch, and whether it is editable |
 | `show [ID]` | the workplan's goal and its tasks' states |
-| `new NAME [-m GOAL \| --reply FILE]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, or the whole file given, on a new branch from master; commit |
-| `edit [ID]` | WORKPLAN.md in the editor; commit |
-| `merge [ID] [-m MESSAGE] [--show]` | run `test.command` and stop if it fails; squash the workplan into master, with the message from its template; `--show` prints the message |
-| `status [ID]` | `task list` |
+| `task list [ID]`, `status [ID]` | each task's state; a workplan held only on another branch shows its committed states |
+| `task show NNNN` | the task's state and TASK.md |
+| `patch show NNNN` | the task, its state, COMMIT_MSG, its dependencies and their states, the files changed; then the staged change if applied, else output.patch |
 | `changelog [FROM] [TO] [--audience NAME]` | the changelog in Markdown, from the squash commits between two tags or commits and their tasks' trailers; writes nothing |
 | `route [REV] [--dispatch]` | the next step after a commit |
 | `install` | post-commit and post-merge hooks that run `route --dispatch` |
 | `serve [--port N]` | the board in a local web page, on 127.0.0.1 |
-
-Tasks:
-
-| Command | Does |
-|---|---|
-| `task list [ID]` | each task's state; a workplan held only on another branch shows its committed states |
-| `task show NNNN` | the task's state and TASK.md |
-| `task add TITLE [--depend N] [-m CHANGE]` | the next task's TASK.md and BREAKDOWN.md from their templates, and its line in WORKPLAN.md; the editor opens on TASK.md; commit |
-| `task add --reply FILE` | the new tasks in a `task gen` reply from a chat; `-` reads standard input; commit |
-| `task gen [ID] [--prompt]` | the agent writes each new task's TASK.md and BREAKDOWN.md; they are listed in WORKPLAN.md and committed with it; `--prompt` prints the prompt for a chat |
-| `task edit NNNN [--doc NAME]` | TASK.md, BREAKDOWN.md or NOTES.md in the editor; commit |
-| `task drop NNNN` | move the task to `## Dropped` in WORKPLAN.md and commit WORKPLAN.md |
-
-Patches:
-
-| Command | Does |
-|---|---|
-| `patch show NNNN` | the task, its state, COMMIT_MSG, its dependencies and their states, the files changed; then the staged change if applied, else output.patch |
-| `patch gen NNNN [--prompt]` | the agent writes output.patch and COMMIT_MSG; `--prompt` prints the prompt for a chat |
-| `patch add NNNN [FILE]` | a reply from a chat, with its commit message line and diff, becomes output.patch and COMMIT_MSG; standard input when FILE is left out |
-| `patch apply NNNN` | stage the patch in the tree and the index |
-| `patch accept NNNN` | commit the patch with COMMIT_MSG, together with the task's directory and WORKPLAN.md |
-| `patch reject NNNN` | take an applied patch back out |
-| `patch drop NNNN` | delete an unapplied output.patch and its COMMIT_MSG |
 
 A task is `ID/NNNN`, or `NNNN` in the current branch's workplan. Every
 command takes `--json` to print its result as JSON.
@@ -190,7 +187,20 @@ workplan changelog --audience users    # leave out developers and internal
 ```
 
 It reads git and writes nothing; its output can go into CHANGELOG.md
-or a release.
+or a release. The squash commits in the range with a Workplan trailer
+give the workplans, and each task's trailers, as the files stand at
+TO, give its section:
+
+```bash
+from=v0.1.0; to=HEAD
+git log --reverse --format='%(trailers:key=Workplan,valueonly)' $from..$to |
+  while read -r plan; do
+    [ -n "$plan" ] || continue
+    for f in $(dirname "$plan")/[0-9][0-9][0-9][0-9]/TASK.md; do
+      echo "$f"; git show "$to:$f" | git interpret-trailers --parse
+    done
+  done
+```
 
 ## Configuration
 
@@ -217,10 +227,21 @@ environment only.
 
 ## Agents
 
-`task gen` and `patch gen` create a worktree at the head of
-the workplan branch, copy `workplans/` into it, run `agent.setup`, stage the worktree and keep
-its tree as the base, then run the agent. The worktree is removed afterwards; the maintainer's own
-tree is never touched.
+`task gen` and `patch gen` work in a worktree at the head of the
+workplan branch, so the maintainer's own tree is never touched:
+
+```bash
+git worktree add --detach /tmp/wt $b
+cp -r workplans /tmp/wt/                             # uncommitted edits are seen
+( cd /tmp/wt && <agent.setup> )
+git -C /tmp/wt add -A && base=$(git -C /tmp/wt write-tree)
+( cd /tmp/wt && <the agent> )
+x=":(exclude)workplans/*/*/output.patch"; y=":(exclude)workplans/*/*/COMMIT_MSG"
+git -C /tmp/wt add -A -- . "$x" "$y"
+git -C /tmp/wt diff --cached --binary $base -- . "$x" "$y" > $t/output.patch
+cp /tmp/wt/$t/COMMIT_MSG $t/
+git worktree remove --force /tmp/wt
+```
 
 - `task gen`: the new task directories the agent wrote under
   `workplans/<id>/` are copied back; existing tasks are left alone.
@@ -291,7 +312,20 @@ model = "<model name>"
 
 `workplan route` reads a commit and prints the next step: `complete`,
 `review`, `patch-gen`, `task-gen` or `none`, with its targets.
-The rules are in SPEC.md, section 10. With `route.classifier = "llm"`,
+The rules take the first action in this table that has targets:
+
+| Action | When | Targets |
+|---|---|---|
+| `complete` | a commit on master with a `Workplan:` trailer | the workplan |
+| `review` | code changed in a commit whose subject is a task id | the task |
+| `patch-gen` | TASK.md or BREAKDOWN.md changed | each task |
+| `task-gen` | WORKPLAN.md changed | the workplan |
+| `none` | anything else, such as a change to the protocol's files | -- |
+
+A task's commit, which also carries its files and WORKPLAN.md, leads
+to `review`; the commit that defines the tasks leads to `patch-gen`.
+The rules read `git show --name-only --format='%s%n%(trailers:key=Workplan)' REV`.
+With `route.classifier = "llm"`,
 a model chooses the action from the prompt in
 `templates/prompts/route.md`; the targets still come from the commit,
 and an answer that is not an action with targets falls back to the
@@ -357,7 +391,16 @@ Documents, prompts and the squash commit message are rendered from
 templates with `string.Template`: `$name` is replaced and nothing else
 happens. To change one, copy it from `src/workplan/templates/<kind>/`
 into `workplans/templates/<kind>/` and edit the copy; the rest keep the
-package's version.
+package's version. The document templates are listed in PROTOCOL.md;
+the prompts are the library's:
+
+| Template | Values |
+|---|---|
+| prompts/task-gen.md | `$id`, `$next`, `$context`, `$task_template`, `$breakdown_template` |
+| prompts/task-gen-none.md | as task-gen.md |
+| prompts/patch-gen.md | `$id`, `$workplan`, `$context`, `$commit_msg` |
+| prompts/patch-gen-none.md | as patch-gen.md |
+| prompts/route.md | `$branch`, `$parents`, `$subject`, `$workplan`, `$paths` |
 
 ## Development
 
@@ -369,7 +412,7 @@ workplans/config.toml sets this as `test.command`, so `wp merge` runs
 it, quietly, before squashing a workplan into master.
 
 The tests build temporary repositories, compare each command with its
-"By hand" block in SPEC.md, rehearse two clones sharing one origin, and
+by-hand git sequence, rehearse two clones sharing one origin, and
 run the `none` agent and the classifier against a local fake endpoint.
 
 The version comes from git tags through setuptools-scm. A release is a

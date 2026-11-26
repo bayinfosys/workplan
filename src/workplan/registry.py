@@ -78,6 +78,7 @@ class Command:
     words: tuple[str, ...] = ()
     render: Callable[[Any], str] | None = None
     cli_only: bool = False
+    protocol: bool = False      # a protocol command, given as git commands in PROTOCOL.md
     method: str = ""
     route: str = ""
     pattern: re.Pattern | None = field(default=None, repr=False)
@@ -146,7 +147,7 @@ class Registry:
 
     def command(self, help: str = "", aliases: tuple[str, ...] = (),
                 render: Callable[[Any], str] | None = None, cli_only: bool = False,
-                method: str = "", route: str = ""):
+                method: str = "", route: str = "", protocol: bool = False):
         def register(function: Callable) -> Callable:
             words = function.__name__.removeprefix("cmd_").split("_")
             verb, noun = words[0], "_".join(words[1:]) or None
@@ -167,7 +168,7 @@ class Registry:
                 parameters.append(Parameter(p.name, kind, spec, default))
 
             command = Command(name, function, help, parameters, tuple(aliases), cli, render,
-                              cli_only)
+                              cli_only, protocol)
             if not cli_only:
                 command.method, command.route = (method, route) if route else http_of(verb, noun)
                 command.pattern = compile_route(command.route)

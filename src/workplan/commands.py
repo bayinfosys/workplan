@@ -149,7 +149,7 @@ def render_merge(result: dict) -> str:
 # workplan
 
 @registry.command(help="create workplans/ in this repository, and commit it",
-                  render=lines, cli_only=True)
+                  render=lines, cli_only=True, protocol=True)
 def cmd_init(ctx):
     return ops.init()
 
@@ -169,7 +169,7 @@ def cmd_show_workplan(ctx, *, workplan: WORKPLAN = None):
 @registry.command(help="a workplan on a new branch; the editor opens on WORKPLAN.md; "
                        "it is committed",
                   render=lambda r: f"switched to {r['branch']}\ncreated {r['created']}\n"
-                  + committed(r))
+                  + committed(r), protocol=True)
 def cmd_new_workplan(ctx, *, name: Annotated[str, Positional("NAME", "lower-case words joined by -")],
                      goal: Annotated[str, Flag("the goal; skips the editor", short="-m")] = None,
                      reply: Annotated[str, Flag("a whole WORKPLAN.md, from a chat or a file; "
@@ -184,7 +184,7 @@ def cmd_new_workplan(ctx, *, name: Annotated[str, Positional("NAME", "lower-case
 
 
 @registry.command(help="edit WORKPLAN.md: the editor, or the text given; it is committed",
-                  render=lambda r: f"saved {r['saved']}\n" + committed(r))
+                  render=lambda r: f"saved {r['saved']}\n" + committed(r), protocol=True)
 def cmd_edit_workplan(ctx, *, workplan: WORKPLAN = None,
                       text: Annotated[str, Flag("the new text; skips the editor")] = None):
     wid = plans.workplan_id(workplan)
@@ -197,7 +197,7 @@ def cmd_edit_workplan(ctx, *, workplan: WORKPLAN = None,
 
 @registry.command(help="run test.command, then squash the workplan into master; the editor "
                        "opens on the message",
-                  render=render_merge)
+                  render=render_merge, protocol=True)
 def cmd_merge_workplan(ctx, *, workplan: WORKPLAN = None,
                        message: Annotated[str, Flag("the message; skips the editor",
                                                     short="-m")] = None,
@@ -236,7 +236,7 @@ def cmd_show_task(ctx, *, task: TASK):
                        "it is committed",
                   render=lambda r: lines([*(f"added {t}" for t in r["tasks"]), committed(r)])
                   if "tasks" in r else f"{r['task']}: listed in {r['listed']}\n"
-                  + lines([*(f"created {p}" for p in r["created"]), committed(r)]))
+                  + lines([*(f"created {p}" for p in r["created"]), committed(r)]), protocol=True)
 def cmd_add_task(ctx, *, title: Annotated[str, Positional("TITLE", "the task's title",
                                                          optional=True, many=True)] = None,
                  workplan: Annotated[str, Flag("the workplan; the current one when left out")] = None,
@@ -251,7 +251,8 @@ def cmd_add_task(ctx, *, title: Annotated[str, Positional("TITLE", "the task's t
 
 
 @registry.command(help="the agent writes the tasks; WORKPLAN.md and the tasks are committed",
-                  render=lambda r: r["prompt"] if "prompt" in r else render_gen_task(r))
+                  render=lambda r: r["prompt"] if "prompt" in r else render_gen_task(r),
+                  protocol=True)
 def cmd_gen_task(ctx, *, workplan: WORKPLAN = None,
                  prompt: Annotated[bool, Flag("print the prompt for a chat; change nothing")] = False):
     if prompt:
@@ -261,7 +262,7 @@ def cmd_gen_task(ctx, *, workplan: WORKPLAN = None,
 
 @registry.command(help="edit a task's document: the editor, or the text given; it is committed",
                   render=lambda r: f"saved {r['saved']}\n" + committed(r),
-                  method="PUT", route="/api/task/{task}/{doc}")
+                  method="PUT", route="/api/task/{task}/{doc}", protocol=True)
 def cmd_edit_task(ctx, *, task: TASK,
                   doc: Annotated[str, Flag("TASK.md, BREAKDOWN.md or NOTES.md")] = "TASK.md",
                   text: Annotated[str, Flag("the new text; skips the editor")] = None):
@@ -275,7 +276,7 @@ def cmd_edit_task(ctx, *, task: TASK,
 
 
 @registry.command(help="move the task to Dropped in WORKPLAN.md, and commit it",
-                  render=lambda r: r["commit"])
+                  render=lambda r: r["commit"], protocol=True)
 def cmd_drop_task(ctx, *, task: TASK):
     return ops.drop_task(task, ctx.master)
 
@@ -291,7 +292,7 @@ def cmd_show_patch(ctx, *, task: TASK):
 
 
 @registry.command(help="a reply from a chat becomes output.patch and COMMIT_MSG",
-                  render=render_gen_patch)
+                  render=render_gen_patch, protocol=True)
 def cmd_add_patch(ctx, *, task: TASK,
                   reply: Annotated[str, Positional("FILE", "the reply; standard input when "
                                                    "left out", optional=True)] = None):
@@ -299,7 +300,8 @@ def cmd_add_patch(ctx, *, task: TASK,
 
 
 @registry.command(help="the agent writes output.patch and COMMIT_MSG",
-                  render=lambda r: r["prompt"] if "prompt" in r else render_gen_patch(r))
+                  render=lambda r: r["prompt"] if "prompt" in r else render_gen_patch(r),
+                  protocol=True)
 def cmd_gen_patch(ctx, *, task: TASK,
                   prompt: Annotated[bool, Flag("print the prompt for a chat; change nothing")] = False):
     if prompt:
@@ -307,24 +309,26 @@ def cmd_gen_patch(ctx, *, task: TASK,
     return agent.gen_patch(task, ctx.cfg)
 
 
-@registry.command(help="stage the patch in the tree and the index", render=lambda r: r["stat"])
+@registry.command(help="stage the patch in the tree and the index", render=lambda r: r["stat"],
+                  protocol=True)
 def cmd_apply_patch(ctx, *, task: TASK):
     return {"stat": ops.apply(task)}
 
 
 @registry.command(help="commit the patch with COMMIT_MSG and the task's files",
-                  render=lambda r: r["commit"])
+                  render=lambda r: r["commit"], protocol=True)
 def cmd_accept_patch(ctx, *, task: TASK):
     return {"commit": ops.accept(task, ctx.master)}
 
 
 @registry.command(help="delete an unapplied patch and its COMMIT_MSG",
-                  render=lambda r: lines(f"removed {p}" for p in r["removed"]))
+                  render=lambda r: lines(f"removed {p}" for p in r["removed"]), protocol=True)
 def cmd_drop_patch(ctx, *, task: TASK):
     return ops.drop_patch(task)
 
 
-@registry.command(help="take an applied patch back out", render=lambda r: r["result"])
+@registry.command(help="take an applied patch back out", render=lambda r: r["result"],
+                  protocol=True)
 def cmd_reject_patch(ctx, *, task: TASK):
     return {"result": ops.reject(task)}
 

@@ -1,6 +1,6 @@
 # The workplan protocol
 
-Version 0.1
+Version 0.2
 
 A `WORKPLAN.md` is a unit of work stored in the git repository of a
 project. Each workplan is broken down into a series of tasks, each
@@ -24,9 +24,10 @@ branch, with each task's `COMMIT_MSG` in the log message.
 All state is in files and git history. There is no central server and
 no co-ordination outside standard git processes.
 
-Every step can be carried out by hand with git and an editor; the
-`workplan` command is support. Each section below ends with its step
-by hand.
+This document defines the files, their formats, the states and the
+branches, then gives each protocol command as the git commands it
+performs. The `workplan` command, `wp`, implements it; its usage is in
+README.md.
 
 ## 1. Repository layout
 
@@ -37,8 +38,6 @@ workplans/              the workplan state
   README.md             points here
   PRINCIPLES.md         principles for the project
   BACKLOG.md            candidate workplans, in order of priority
-  config.toml           settings for the workplan command
-  dispatch.sh           the steps the workplan command's hooks run after each commit
   templates/            optional overrides of the templates
   <id>/                 one workplan
     WORKPLAN.md         the goal, context, decisions and tasks
@@ -51,25 +50,16 @@ workplans/              the workplan state
 ```
 
 `PRINCIPLES.md` holds project-level guidance for workplans, task
-definitions and review: taste, personas, constraints. `config.toml`
-configures the `workplan` command and has no meaning in the protocol,
-as does `dispatch.sh`, the script `route.dispatch` can name.
+definitions and review: taste, personas, constraints. An
+implementation may keep files of its own under `workplans/`, such as
+the `workplan` command's config.toml; they have no meaning in the
+protocol.
 
 Working files ignored by git:
 
 ```
 workplans/*/*/output.patch
 workplans/*/*/COMMIT_MSG
-```
-
-By hand:
-
-```bash
-mkdir -p workplans
-$EDITOR workplans/README.md workplans/PRINCIPLES.md workplans/BACKLOG.md
-printf '%s\n' 'workplans/*/*/output.patch' 'workplans/*/*/COMMIT_MSG' >> .gitignore
-git add workplans .gitignore
-git commit -m "workplan init"
 ```
 
 ## 2. Identifiers
@@ -200,13 +190,12 @@ the change does:
 
 A change that needs a second line to describe is two tasks.
 
-## 4. Templates
+## 4. Document templates
 
 Every document has a template, and so does the squash commit message.
 Templates use substitution only: `$name` is replaced, `$$` is a literal
 `$`. A project overrides a template by placing a file of the same name
-in `workplans/templates/<kind>/`; the kinds are `documents`, `prompts`
-and `project`.
+in `workplans/templates/documents/`.
 
 | Template | Values |
 |---|---|
@@ -215,29 +204,8 @@ and `project`.
 | documents/BREAKDOWN.md | `$id`, `$title` |
 | documents/NOTES.md | `$id`, `$title` |
 | documents/SQUASH_COMMIT_MSG | `$id`, `$title`, `$goal`, `$tasks`, `$breaking`, `$path` |
-| prompts/task-gen.md | `$id`, `$next`, `$context`, `$task_template`, `$breakdown_template` |
-| prompts/task-gen-none.md | as task-gen.md |
-| prompts/patch-gen.md | `$id`, `$workplan`, `$context`, `$commit_msg` |
-| prompts/patch-gen-none.md | as patch-gen.md |
-| prompts/route.md | `$branch`, `$parents`, `$subject`, `$workplan`, `$paths` |
 
 Text in angle brackets in a template is for the author to replace.
-
-`workplan task add TITLE [--depend N] [-m CHANGE]` writes a new task
-this way, adds its line to WORKPLAN.md, and commits them as
-`<id> add <nnnn>`.
-
-By hand, a new task:
-
-```bash
-n=0003; w=workplans/2026-11-24-one-package
-mkdir $w/$n
-cp <templates>/documents/TASK.md <templates>/documents/BREAKDOWN.md $w/$n/
-$EDITOR $w/$n/TASK.md $w/$n/BREAKDOWN.md     # replace $title, $depends, $change
-$EDITOR $w/WORKPLAN.md                      # add "0003  <title>" under Tasks
-git add $w/$n $w/WORKPLAN.md
-git commit -m "${w#workplans/} add $n" -- $w/$n $w/WORKPLAN.md
-```
 
 ## 5. Steps
 
@@ -254,29 +222,13 @@ git commit -m "${w#workplans/} add $n" -- $w/$n $w/WORKPLAN.md
    committed; run the patch loop (section 6) until the diff is right;
    commit it with COMMIT_MSG, together with the task's directory and
    WORKPLAN.md; push.
-4. Review the workplan as a whole (section 12).
+4. Review the workplan as a whole (section 10).
 5. Squash-merge to master (section 9).
 
 The maintainer authors every commit. AI assistants do not commit.
 
 Testing is the maintainer's: after applying a patch, after committing
 a task, before merging or after. The protocol does not record it.
-
-By hand, steps 1 and 2:
-
-```bash
-w=2026-11-24-one-package
-git switch -c workplan/$w/definition master
-mkdir -p workplans/$w
-cp <templates>/documents/WORKPLAN.md workplans/$w/
-$EDITOR workplans/$w/WORKPLAN.md             # replace $id, $title, $goal
-$EDITOR workplans/BACKLOG.md                  # remove the item
-git add workplans/$w workplans/BACKLOG.md
-git commit -m "$w workplan"
-# write the tasks (section 4), then, to share them before work starts:
-git add workplans/$w
-git commit -m "$w define tasks"
-```
 
 ## 6. The patch loop
 
@@ -293,19 +245,7 @@ architectural change, a refactoring or an unrelated fix, is raised for
 a later workplan, not put into the patch.
 
 The patch can come from any source: a person, a chat, or an agent
-(section 11).
-
-By hand:
-
-```bash
-w=2026-11-24-one-package; t=workplans/$w/0003
-git apply --check $t/output.patch
-git apply --index $t/output.patch                  # apply
-git diff --cached                                  # read
-git apply --index -R $t/output.patch               # reject
-git add $t workplans/$w/WORKPLAN.md                # accept
-git commit -F $t/COMMIT_MSG
-```
+(the `patch gen` command).
 
 ## 7. States
 
@@ -329,7 +269,7 @@ Patches are working files, so `testing`, `development`, `waiting` and
 `stale` are states of one clone. Every clone sees `merged`,
 `complete`, `dropped`, `refinement` and `unspecified`.
 
-By hand:
+Read with git:
 
 ```bash
 t=2026-11-24-one-package/0003
@@ -393,115 +333,10 @@ Every task id then reaches master's history, where its state reads
 the work. Tagging the branch before deleting it is the maintainer's
 choice.
 
-By hand:
-
-```bash
-w=2026-11-24-one-package; b=workplan/$w/definition
-git merge-base --is-ancestor master $b || echo "rebase $b onto master first"
-git switch $b && <the project's test command> || echo "the tests fail; merge nothing"
-{ echo "$w <title>"; echo; echo "<goal>"; echo
-  git log --reverse --format=%s master..$b | grep "^$w/[0-9]\{4\} "; echo
-  for t in workplans/$w/[0-9][0-9][0-9][0-9]/TASK.md; do
-    git interpret-trailers --parse "$t" | sed -n 's/^Breaking: /BREAKING-CHANGE: /p'; done
-  echo "Workplan: workplans/$w/WORKPLAN.md"; } > /tmp/msg
-git switch master
-git merge --squash $b
-git commit -e -F /tmp/msg
-git branch -D $b
-git push origin master
-git push origin --delete $b
-```
-
 `git log --format='%h %s %(trailers:key=Workplan,valueonly)'` lists
 the workplan behind each commit on master.
 
-### The changelog
-
-A changelog between two tags or commits is read from git: the squash
-commits in the range that have a Workplan trailer, oldest first, and
-the trailer block of each task their WORKPLAN.md lists under Tasks, as
-the files stand at the end of the range. Each task goes under Added
-(`Change: feat`), Fixed (`fix`), Changed (`refactor`, `docs`, `test`,
-`chore`) or Other; each `Breaking` trailer is listed first.
-`workplan changelog [FROM] [TO]` prints it; FROM is the latest tag
-before TO when left out, and TO is HEAD.
-
-By hand:
-
-```bash
-from=v0.1.0; to=HEAD
-git log --reverse --format='%(trailers:key=Workplan,valueonly)' $from..$to |
-  while read -r plan; do
-    [ -n "$plan" ] || continue
-    for t in $(dirname "$plan")/[0-9][0-9][0-9][0-9]/TASK.md; do
-      echo "$t"; git show "$to:$t" | git interpret-trailers --parse
-    done
-  done
-```
-
-## 10. Routing
-
-After a commit, the next step follows from what the commit changed.
-The targets come from the commit; the action is the first in this
-table that has targets:
-
-| Action | When | Targets |
-|---|---|---|
-| `complete` | a commit on master with a `Workplan:` trailer | the workplan |
-| `review` | code changed in a commit whose subject is a task id | the task |
-| `patch-gen` | TASK.md or BREAKDOWN.md changed | each task |
-| `task-gen` | WORKPLAN.md changed | the workplan |
-| `none` | anything else, such as a change to the protocol's files | -- |
-
-A task's commit, which also carries its files and WORKPLAN.md, leads
-to `review`; the commit that defines the tasks leads to
-`patch-gen`. A `post-commit` hook can run each step automatically.
-
-By hand:
-
-```bash
-git show --name-only --format='%s%n%(trailers:key=Workplan)' HEAD
-```
-
-## 11. Agents
-
-An agent is anything that defines a workplan's tasks, or turns a
-task's files into output.patch and COMMIT_MSG. The agent works in a
-separate worktree at the head of the workplan branch, so the
-maintainer's tree is untouched:
-
-1. `git worktree add --detach <tmp> workplan/<id>/definition`
-2. copy `workplans/` into the worktree, so uncommitted edits are seen
-3. run any setup the project needs in the worktree, then stage the
-   worktree and keep its tree as the base
-4. run the agent in the worktree
-5. bring the result back:
-   - to define tasks: copy the new task directories back, list them in
-     WORKPLAN.md, and commit WORKPLAN.md with them
-   - to produce a patch: stage everything but output.patch and
-     COMMIT_MSG, save the diff from the base as output.patch, and copy
-     COMMIT_MSG out
-6. `git worktree remove --force <tmp>`
-
-By hand, producing a patch:
-
-```bash
-w=2026-11-24-one-package; t=$w/0003
-git worktree add --detach /tmp/wt workplan/$w/definition
-cp -r workplans /tmp/wt/
-git -C /tmp/wt add -A && base=$(git -C /tmp/wt write-tree)
-( cd /tmp/wt && <agent, or edit by hand> )
-x=":(exclude)workplans/*/*/output.patch"; y=":(exclude)workplans/*/*/COMMIT_MSG"
-git -C /tmp/wt add -A -- . "$x" "$y"
-git -C /tmp/wt diff --cached --binary $base -- . "$x" "$y" > workplans/$t/output.patch
-cp /tmp/wt/workplans/$t/COMMIT_MSG workplans/$t/
-git worktree remove --force /tmp/wt
-```
-
-Pasting the rendered prompt and the files into a chat, and saving the
-reply's diff as output.patch, is the same step.
-
-## 12. Review
+## 10. Review
 
 The review reads WORKPLAN.md, the task files and the diff of the
 workplan's commits, without the discussion that produced them, and
@@ -511,14 +346,14 @@ answers:
 - does the diff hold to PRINCIPLES.md?
 - does the diff contain changes that no task accounts for?
 
-By hand:
+Read with git:
 
 ```bash
 git diff master...workplan/2026-11-24-one-package/definition    # the whole workplan
 git log -p --reverse master..workplan/2026-11-24-one-package/definition   # task by task
 ```
 
-## 13. Working together
+## 11. Working together
 
 - Fetch before starting work: `git fetch --prune`.
 - Each workplan has one owner. When master moves while a workplan is
@@ -529,3 +364,191 @@ git log -p --reverse master..workplan/2026-11-24-one-package/definition   # task
 - Pushing a task branch claims the task. The first push stands.
 - Suggested settings: `git config pull.rebase true`,
   `git config rebase.autoStash true`, `git config fetch.prune true`.
+
+## 12. Protocol commands
+
+Each protocol command of the `workplan` command, `wp`, is given below
+as the git commands it performs, in order. A line starting with `#`
+is a step for an editor, a person or an agent. The supporting
+commands, which read git or run the library and change nothing in the
+protocol, are in README.md.
+
+The blocks use these variables:
+
+```bash
+w=2026-11-24-one-package                          # workplan id
+n=0003                                            # task number
+t=workplans/$w/$n                                 # task directory
+b=workplan/$w/definition                          # workplan branch
+master=master                                     # integration branch
+T=<templates>/documents                           # document templates
+```
+
+## wp init
+
+Create workplans/ and ignore the working files. The `workplan` command
+also writes its own config.toml and dispatch.sh there.
+
+```bash
+mkdir -p workplans
+# write README.md, PRINCIPLES.md and BACKLOG.md in workplans/
+printf '%s\n' 'workplans/*/*/output.patch' 'workplans/*/*/COMMIT_MSG' >> .gitignore
+git add        workplans .gitignore
+git commit     -m "workplan init" -- workplans .gitignore
+```
+
+## wp new
+
+A workplan on a new branch from master. `--reply FILE` gives the whole
+WORKPLAN.md in place of the template.
+
+```bash
+git switch     -c $b $master
+mkdir -p workplans/$w
+cp $T/WORKPLAN.md workplans/$w/
+$EDITOR workplans/$w/WORKPLAN.md                  # replace $id, $title, $goal
+# from a BACKLOG.md item: remove it there, and add BACKLOG.md below
+git add        workplans/$w/WORKPLAN.md
+git commit     -m "$w workplan" -- workplans/$w/WORKPLAN.md
+```
+
+## wp edit
+
+Edit WORKPLAN.md, with the workplan's branch checked out.
+
+```bash
+$EDITOR workplans/$w/WORKPLAN.md
+git add        workplans/$w/WORKPLAN.md
+git commit     -m "$w edit WORKPLAN.md" -- workplans/$w/WORKPLAN.md
+```
+
+## wp merge
+
+Squash the workplan into master once every listed task is committed or
+dropped, the branch contains master and the tests pass (section 9).
+Pushing is the maintainer's.
+
+```bash
+git merge-base --is-ancestor $master $b           # else rebase $b onto $master
+git switch     $b
+<the project's test command>                      # stop if it fails
+{ echo "$w <title>"; echo; echo "<goal>"; echo
+  git log --reverse --format=%s $master..$b | grep "^$w/[0-9]\{4\} "; echo
+  for f in workplans/$w/[0-9][0-9][0-9][0-9]/TASK.md; do
+    git interpret-trailers --parse "$f" | sed -n 's/^Breaking: /BREAKING-CHANGE: /p'
+  done; echo "Workplan: workplans/$w/WORKPLAN.md"; } > /tmp/msg
+git switch     $master
+git merge      --squash $b
+git commit     -e -F /tmp/msg                     # on failure: reset --merge, switch $b
+git branch     -D $b
+```
+
+## wp task add
+
+The next task from its templates, listed in WORKPLAN.md. `--reply
+FILE` writes the tasks in a reply and commits them as
+`$w define tasks`.
+
+```bash
+mkdir $t
+cp $T/TASK.md $T/BREAKDOWN.md $t/
+$EDITOR $t/TASK.md $t/BREAKDOWN.md                # replace $title, $change, $depends
+$EDITOR workplans/$w/WORKPLAN.md                  # add "$n  <title>" under ## Tasks
+git add        $t workplans/$w/WORKPLAN.md
+git commit     -m "$w add $n" -- $t workplans/$w/WORKPLAN.md
+```
+
+## wp task gen
+
+New tasks written from WORKPLAN.md by any author, with the workplan's
+branch checked out. The `workplan` command runs an agent in a worktree
+(README.md, Agents); the protocol fixes the files it leaves.
+
+```bash
+# write TASK.md and BREAKDOWN.md in workplans/$w/<nnnn>/ for each new task
+$EDITOR workplans/$w/WORKPLAN.md                  # list each under ## Tasks
+git add        workplans/$w
+git commit     -m "$w define tasks" -- workplans/$w
+```
+
+## wp task edit
+
+Edit a task's TASK.md, BREAKDOWN.md or NOTES.md.
+
+```bash
+$EDITOR $t/TASK.md                                # or BREAKDOWN.md, NOTES.md
+git add        $t/TASK.md
+git commit     -m "$w edit $n/TASK.md" -- $t/TASK.md
+```
+
+## wp task drop
+
+Close a task without a commit of its own.
+
+```bash
+$EDITOR workplans/$w/WORKPLAN.md                  # move its line to ## Dropped
+git commit     -m "$w drop $n" -- workplans/$w/WORKPLAN.md
+```
+
+## wp patch add
+
+A reply from a chat or a person, holding a commit message line and a
+diff, becomes the task's patch. The `workplan` command applies the
+diff in a worktree and keeps the diff git produces there.
+
+```bash
+# save the reply's diff as $t/output.patch        # against the head of $b
+echo "$w/$n <what the change does>" > $t/COMMIT_MSG
+git apply      --check $t/output.patch
+```
+
+## wp patch gen
+
+A patch produced from TASK.md and BREAKDOWN.md by any author. The
+`workplan` command runs an agent in a worktree (README.md, Agents);
+the protocol fixes the files it leaves.
+
+```bash
+# write $t/output.patch and $t/COMMIT_MSG         # against the head of $b
+git apply      --check $t/output.patch
+```
+
+## wp patch apply
+
+Stage the patch for review.
+
+```bash
+git apply      --index $t/output.patch
+git diff       --cached                           # read it; run the tests
+```
+
+## wp patch accept
+
+Commit the patch with the task's files. Refused on master, for a task
+not listed under ## Tasks, and when COMMIT_MSG is not one line
+starting with the task id.
+
+```bash
+git apply      --index $t/output.patch            # unless applied already
+git add        $t workplans/$w/WORKPLAN.md
+git commit     -F $t/COMMIT_MSG
+```
+
+## wp patch reject
+
+Take an applied, uncommitted patch back out.
+
+```bash
+# when the check fails, restore the edited files first
+git apply      --index -R --check $t/output.patch
+git apply      --index -R $t/output.patch
+```
+
+## wp patch drop
+
+Delete an unapplied patch and its commit message.
+
+```bash
+git apply      -R --check $t/output.patch         # succeeds if applied: reject
+rm $t/output.patch $t/COMMIT_MSG
+```

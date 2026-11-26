@@ -4,8 +4,9 @@ Every task and every review holds to these.
 
 - a task makes the change it states and nothing else
 - every step of the protocol can be carried out by hand with git and
-  an editor; SPEC.md gives the step, and a change to a step changes
-  SPEC.md in the same task
+  an editor; PROTOCOL.md defines the protocol, and a change to a format
+  or to a protocol command's git steps changes PROTOCOL.md in the same
+  task
 - the library ensures the order of the git operations within a step,
   and restores the tree when one fails
 - the repository is read and changed through git commands only

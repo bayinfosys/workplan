@@ -1,4 +1,4 @@
-"""Each command against its "By hand" block in SPEC.md.
+"""Each protocol command against its git commands in PROTOCOL.md.
 
 Two repositories are built the same way, with fixed commit dates. One
 runs the command and the other runs the block; their commits, trees
