@@ -102,7 +102,7 @@ class Cycle(unittest.TestCase):
         result = self.repo.wp("task", "gen", wid, env=self.env, ok=False)
         self.assertIn("switch", result.stderr)
 
-    # add-task ------------------------------------------------------------
+    # task add ------------------------------------------------------------
 
     def test_add_task(self):
         wid = planned(self.repo, tasks=1)

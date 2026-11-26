@@ -1,4 +1,4 @@
-"""drop-task and drop-patch."""
+"""task drop and patch drop."""
 
 import json
 import tempfile

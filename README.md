@@ -61,8 +61,10 @@ workplan merge                     # squash into master; the editor opens on the
                                    # the local definition branch is deleted
 ```
 
-The commands commit what they complete: `init`, `task gen`,
-`patch accept` and `merge`. Pushing is the maintainer's.
+The commands that complete a step or change a document commit it:
+`init`, `new`, `edit`, `task add`, `task gen`, `task edit`,
+`task drop`, `patch accept` and `merge`. `patch apply` stages a patch
+for review and commits nothing. Pushing is the maintainer's.
 
 The workplan's commands are verbs on their own: `new`, `list`, `show`,
 `edit` and `merge`; `new` and `merge` are the two that change branches.
