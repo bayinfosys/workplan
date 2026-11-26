@@ -26,7 +26,7 @@ NNNN = re.compile(r"\d{4}")                         # a task number
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")      # the name in a new id
 
 TASK_LINE = re.compile(r"^(\d{4})\s", re.M)         # a task line in WORKPLAN.md
-DEPENDS = re.compile(r"^Depends on (.+)$", re.M)    # the dependency line in TASK.md
+DEPENDS = re.compile(r"^Depends on (.+)$", re.M)    # the older dependency sentence in TASK.md
 TITLE = re.compile(r"^# (.+)$", re.M)               # the title line of a document
 BRANCH = re.compile(r"^workplan/([^/]+)/")          # a workplan's branches
 HEADING = re.compile(r"^## (.+)$", re.M)
@@ -117,9 +117,29 @@ def next_number(wid: str) -> str:
     return f"{max(numbers) + 1 if numbers else 0:04d}"
 
 
+def trailers(text: str) -> list[tuple[str, str]]:
+    """The trailer block at the end of a document, as git reads it: the
+    (key, value) pairs of its last paragraph, in order."""
+    out = git.run("interpret-trailers", "--parse", input=text if text.endswith("\n") else text + "\n")
+    pairs = []
+    for line in out.splitlines():
+        key, sep, value = line.partition(":")
+        if sep:
+            pairs.append((key.strip(), value.strip()))
+    return pairs
+
+
+def trailer(text: str, key: str) -> str | None:
+    """The first value of a trailer, its key matched with case ignored."""
+    return next((v for k, v in trailers(text) if k.lower() == key.lower()), None)
+
+
 def depends_of(text: str, wid: str) -> list[str]:
-    """The tasks named on a TASK.md's 'Depends on' line, in workplan wid."""
-    return [f"{wid}/{n}" for line in DEPENDS.findall(text) for n in NNNN.findall(line)]
+    """The tasks a TASK.md depends on, in workplan wid: its Depends
+    trailer, else its 'Depends on' sentence."""
+    value = trailer(text, "Depends")
+    lines = [value] if value is not None else DEPENDS.findall(text)
+    return [f"{wid}/{n}" for line in lines for n in NNNN.findall(line)]
 
 
 def depends_on(tid: str) -> list[str]:
