@@ -51,4 +51,10 @@ squash commits and those lines, with no agent needed.
 
 ## Tasks
 
+0000  Read a task's trailer block with git
+0001  TASK.md ends with a trailer block
+0002  The squash message carries breaking changes
+0003  wp changelog
+0004  Trailer blocks for the tasks since v0.1.0
+
 ## Dropped
