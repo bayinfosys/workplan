@@ -415,6 +415,30 @@ git push origin --delete $b
 `git log --format='%h %s %(trailers:key=Workplan,valueonly)'` lists
 the workplan behind each commit on master.
 
+### The changelog
+
+A changelog between two tags or commits is read from git: the squash
+commits in the range that have a Workplan trailer, oldest first, and
+the trailer block of each task their WORKPLAN.md lists under Tasks, as
+the files stand at the end of the range. Each task goes under Added
+(`Change: feat`), Fixed (`fix`), Changed (`refactor`, `docs`, `test`,
+`chore`) or Other; each `Breaking` trailer is listed first.
+`workplan changelog [FROM] [TO]` prints it; FROM is the latest tag
+before TO when left out, and TO is HEAD.
+
+By hand:
+
+```bash
+from=v0.1.0; to=HEAD
+git log --reverse --format='%(trailers:key=Workplan,valueonly)' $from..$to |
+  while read -r plan; do
+    [ -n "$plan" ] || continue
+    for t in $(dirname "$plan")/[0-9][0-9][0-9][0-9]/TASK.md; do
+      echo "$t"; git show "$to:$t" | git interpret-trailers --parse
+    done
+  done
+```
+
 ## 10. Routing
 
 After a commit, the next step follows from what the commit changed.

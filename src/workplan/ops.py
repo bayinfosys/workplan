@@ -563,3 +563,61 @@ def install() -> list[str]:
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         done.append(f"wrote {path}")
     return done
+
+
+SECTIONS = {"feat": "Added", "fix": "Fixed", "refactor": "Changed", "docs": "Changed",
+            "test": "Changed", "chore": "Changed"}
+SECTION_ORDER = ("Added", "Fixed", "Changed", "Other")
+
+
+def changelog(start: str | None = None, end: str | None = None,
+              audience: str | None = None) -> dict:
+    """The changelog between two tags or commits, read from git alone:
+    the squash commits with a Workplan trailer in start..end, and the
+    trailer blocks of their tasks at end. Nothing is written."""
+    end = end or "HEAD"
+    end_sha = git.run("rev-parse", "--verify", f"{end}^{{commit}}")
+    if start is None and git.ok("rev-parse", "--verify", f"{end_sha}^"):
+        found = subprocess.run(["git", "describe", "--tags", "--abbrev=0", f"{end_sha}^"],
+                               capture_output=True, text=True)
+        start = found.stdout.strip() or None
+    tags = git.run("tag", "--points-at", end_sha, "--sort=-v:refname").splitlines()
+    span = f"{start}..{end_sha}" if start else end_sha
+    log = git.run("log", "--reverse", "--format=%H%x1f%(trailers:key=Workplan,valueonly)%x1e",
+                  span)
+
+    workplans, entries = [], []
+    for record in filter(None, (r.strip() for r in log.split("\x1e"))):
+        sha, _, path = record.partition("\x1f")
+        path = path.strip().splitlines()[0] if path.strip() else ""
+        if not path:
+            continue
+        wid = Path(path).parent.name
+        plan = git.run("show", f"{end_sha}:{path}", strip=False)
+        workplan_title = plans.workplan_title_of(plan)
+        workplans.append({"id": wid, "title": workplan_title, "commit": sha[:7]})
+        for nnnn in plans.TASK_LINE.findall(plans.sections(plan).get("tasks", "")):
+            tid = f"{wid}/{nnnn}"
+            task_path = f"{Path(path).parent}/{nnnn}/TASK.md"
+            if not git.ok("cat-file", "-e", f"{end_sha}:{task_path}"):
+                continue
+            text = git.run("show", f"{end_sha}:{task_path}", strip=False)
+            keys = {k.lower(): v for k, v in reversed(plans.trailers(text))}
+            change = (keys.get("change") or "").split()[:1]
+            heard = (keys.get("audience") or "").split()[:1]
+            if audience and heard and heard[0].lower() != audience.lower():
+                continue
+            entries.append({
+                "task": tid, "title": plans.title_of(text),
+                "workplan": wid, "workplan_title": workplan_title,
+                "section": SECTIONS.get(change[0].lower(), "Other") if change else "Other",
+                "audience": heard[0].lower() if heard else None,
+                "breaking": keys.get("breaking"),
+            })
+    return {
+        "heading": tags[0] if tags else "Unreleased",
+        "date": git.run("log", "-1", "--format=%cs", end_sha),
+        "from": start, "to": end,
+        "workplans": workplans,
+        "entries": entries,
+    }
