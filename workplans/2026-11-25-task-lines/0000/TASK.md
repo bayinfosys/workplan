@@ -12,4 +12,6 @@ Effects:
 - reading WORKPLAN.md is unchanged: a section with blank lines between
   its entries reads as before
 
-Depends on none.
+Depends: none
+Change: fix
+Audience: users

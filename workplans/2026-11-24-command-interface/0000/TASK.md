@@ -20,4 +20,6 @@ Effects:
   `Registry.match(method, path)` finds the command and its path
   parameters, and `Registry.call(command, ctx, values)` runs it
 
-Depends on none.
+Depends: none
+Change: refactor
+Audience: developers

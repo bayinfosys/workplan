@@ -15,4 +15,6 @@ Effects:
 - `status --json` gives each workplan's source and whether it is
   editable
 
-Depends on none.
+Depends: none
+Change: feat
+Audience: users

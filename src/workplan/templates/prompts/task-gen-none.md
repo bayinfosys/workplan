@@ -16,7 +16,10 @@ WORKPLAN.md. Existing tasks stay as they are.
 For each new task, numbered from $next upwards, give two files.
 
 TASK.md, in this form, with each $$name and each <...> replaced;
-"Depends on" names earlier task numbers, or "none":
+It ends with a block of trailer lines: Depends names earlier task
+numbers, or none; Change is one of feat, fix, docs, refactor, test or
+chore; Audience is users, developers or internal; Breaking says what
+the change breaks, and is left out when nothing breaks:
 
 $task_template
 BREAKDOWN.md, in this form:

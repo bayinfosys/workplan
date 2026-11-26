@@ -26,4 +26,7 @@ Effects:
   config.toml's comment names the After actions
 - the agent module's docstring and comments use the After names
 
-Depends on 0000.
+Depends: 0000
+Change: refactor
+Audience: developers
+Breaking: the route actions and WORKPLAN_ACTION gen-task and gen-patch are now task-gen and patch-gen, and the prompt templates are renamed to match

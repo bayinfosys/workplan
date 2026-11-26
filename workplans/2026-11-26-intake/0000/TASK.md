@@ -14,4 +14,6 @@ Effects:
 - an empty reply fails, as for the other replies
 - README.md's command table and the paragraph on `new` describe it
 
-Depends on none.
+Depends: none
+Change: feat
+Audience: users

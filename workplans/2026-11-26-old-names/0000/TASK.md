@@ -14,4 +14,6 @@ Effects:
   task drop, patch accept and merge as the commands that commit, and
   says patch apply commits nothing
 
-Depends on none.
+Depends: none
+Change: docs
+Audience: users

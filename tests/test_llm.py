@@ -58,7 +58,7 @@ class Endpoint(unittest.TestCase):
         self.assertEqual(self.repo.read("app.txt"), "hello\n")
         prompt = endpoint.requests[0]["body"]["messages"][0]["content"]
         self.assertIn(f"===== workplans/{wid}/WORKPLAN.md =====", prompt)
-        self.assertIn("Depends on $depends.", prompt)
+        self.assertIn("Depends: $depends\n", prompt)
 
     def test_none_agent(self):
         wid = planned(self.repo)

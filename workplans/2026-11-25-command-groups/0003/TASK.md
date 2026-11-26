@@ -13,4 +13,6 @@ Effects:
   branches
 - no old command name or action is left in either file
 
-Depends on 0000, 0001.
+Depends: 0000, 0001
+Change: docs
+Audience: users

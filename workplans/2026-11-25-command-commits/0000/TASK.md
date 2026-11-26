@@ -16,4 +16,6 @@ Effects:
 - README.md and SPEC.md section 4, with its by-hand block, say what
   each command commits
 
-Depends on none.
+Depends: none
+Change: feat
+Audience: users

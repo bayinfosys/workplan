@@ -13,4 +13,6 @@ Effects:
 - the page's panel has Drop task and Drop patch, each asking first
 - README.md lists both
 
-Depends on 0003.
+Depends: 0003
+Change: feat
+Audience: users

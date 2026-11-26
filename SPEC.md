@@ -139,8 +139,8 @@ A task listed under `## Dropped` is closed without a commit.
 
 ### TASK.md
 
-One change and its effects. The first line is the title. One line
-names the tasks it depends on, by number, or `none`:
+One change and its effects. The first line is the title. The last
+paragraph is a block of git trailers, one `Key: value` line each:
 
 ```markdown
 # <title>
@@ -151,8 +151,26 @@ Effects:
 
 - <what holds once the change is applied>
 
-Depends on 0000, 0002.
+Depends: 0000, 0002
+Change: feat
+Audience: users
+Breaking: wp add-task is now wp task add
 ```
+
+| Key | Value |
+|---|---|
+| `Depends` | the tasks it depends on, by number, or `none` |
+| `Change` | `feat`, `fix`, `docs`, `refactor`, `test` or `chore` |
+| `Audience` | `users`, `developers` or `internal` |
+| `Breaking` | what the change breaks, in a sentence; left out when nothing breaks |
+| `Refs`, `Fixes` | optional: a link or issue; the task or commit a fix repairs |
+
+The values are hints: tools read the first word of `Change` and
+`Audience` when it is one of the words above, and leave anything else
+to a reader or a model. Older tasks end with a sentence, "Depends on
+0000, 0002.", which is read when there is no `Depends` trailer. By
+hand, `git interpret-trailers --parse TASK.md` prints the block, and
+`grep '^Change:' workplans/<id>/*/TASK.md` lists the kinds.
 
 A task changes the project: its code, its documentation or its build.
 It needs no further decisions before work starts.
@@ -196,7 +214,7 @@ and `project`.
 | documents/TASK.md | `$id`, `$title`, `$depends`, `$change` |
 | documents/BREAKDOWN.md | `$id`, `$title` |
 | documents/NOTES.md | `$id`, `$title` |
-| documents/SQUASH_COMMIT_MSG | `$id`, `$title`, `$goal`, `$tasks`, `$path` |
+| documents/SQUASH_COMMIT_MSG | `$id`, `$title`, `$goal`, `$tasks`, `$breaking`, `$path` |
 | prompts/task-gen.md | `$id`, `$next`, `$context`, `$task_template`, `$breakdown_template` |
 | prompts/task-gen-none.md | as task-gen.md |
 | prompts/patch-gen.md | `$id`, `$workplan`, `$context`, `$commit_msg` |
@@ -301,7 +319,7 @@ marker files. The first state that holds is the state:
 | `dropped` | WORKPLAN.md lists the task under `## Dropped` |
 | `testing` | output.patch is in the index or the tree, uncommitted |
 | `development` | output.patch exists and would apply |
-| `waiting` | output.patch does not apply, and a task on its `Depends on` line is not committed |
+| `waiting` | output.patch does not apply, and a task named by its `Depends` trailer is not committed |
 | `stale` | output.patch does not apply, and every task it depends on is committed: produce it again |
 | `refinement` | TASK.md exists, with no patch |
 | `unspecified` | WORKPLAN.md lists the task, with no directory |
@@ -351,8 +369,10 @@ earlier task for instance; once merged, master holds its record.
 
 The message is rendered from the SQUASH_COMMIT_MSG template: the
 workplan id and title, the goal, the task commit subjects in order,
-and a trailer naming the workplan. The maintainer edits it before the
-commit:
+a `BREAKING-CHANGE:` trailer for each task with a `Breaking` trailer,
+and a trailer naming the workplan. Conventional Commits reads
+`BREAKING-CHANGE` as `BREAKING CHANGE`; the hyphen keeps it a git
+trailer. The maintainer edits the message before the commit:
 
 ```
 2026-11-24-one-package One import package
@@ -364,6 +384,7 @@ marigold command into an environment.
 2026-11-24-one-package/0001 Name each module by its path under marigold
 2026-11-24-one-package/0002 Install the CLI with pipx or uv tool
 
+BREAKING-CHANGE: the packages bayis and marigold_cli are now marigold
 Workplan: workplans/2026-11-24-one-package/WORKPLAN.md
 ```
 
@@ -380,6 +401,8 @@ git merge-base --is-ancestor master $b || echo "rebase $b onto master first"
 git switch $b && <the project's test command> || echo "the tests fail; merge nothing"
 { echo "$w <title>"; echo; echo "<goal>"; echo
   git log --reverse --format=%s master..$b | grep "^$w/[0-9]\{4\} "; echo
+  for t in workplans/$w/[0-9][0-9][0-9][0-9]/TASK.md; do
+    git interpret-trailers --parse "$t" | sed -n 's/^Breaking: /BREAKING-CHANGE: /p'; done
   echo "Workplan: workplans/$w/WORKPLAN.md"; } > /tmp/msg
 git switch master
 git merge --squash $b
@@ -391,6 +414,30 @@ git push origin --delete $b
 
 `git log --format='%h %s %(trailers:key=Workplan,valueonly)'` lists
 the workplan behind each commit on master.
+
+### The changelog
+
+A changelog between two tags or commits is read from git: the squash
+commits in the range that have a Workplan trailer, oldest first, and
+the trailer block of each task their WORKPLAN.md lists under Tasks, as
+the files stand at the end of the range. Each task goes under Added
+(`Change: feat`), Fixed (`fix`), Changed (`refactor`, `docs`, `test`,
+`chore`) or Other; each `Breaking` trailer is listed first.
+`workplan changelog [FROM] [TO]` prints it; FROM is the latest tag
+before TO when left out, and TO is HEAD.
+
+By hand:
+
+```bash
+from=v0.1.0; to=HEAD
+git log --reverse --format='%(trailers:key=Workplan,valueonly)' $from..$to |
+  while read -r plan; do
+    [ -n "$plan" ] || continue
+    for t in $(dirname "$plan")/[0-9][0-9][0-9][0-9]/TASK.md; do
+      echo "$t"; git show "$to:$t" | git interpret-trailers --parse
+    done
+  done
+```
 
 ## 10. Routing
 

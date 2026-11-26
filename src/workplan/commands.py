@@ -121,6 +121,23 @@ def committed(result: dict) -> str:
     return f"committed {result['commit']}" if result.get("commit") else "nothing to commit"
 
 
+def render_changelog(log: dict) -> str:
+    def line(e: dict, text: str) -> str:
+        return f"- {text} ({e['workplan_title']}, {e['task']})"
+
+    out = [f"## {log['heading']} ({log['date']})"]
+    breaking = [line(e, e["breaking"]) for e in log["entries"] if e["breaking"]]
+    groups = [("Breaking", breaking)] + [
+        (name, [line(e, e["title"]) for e in log["entries"] if e["section"] == name])
+        for name in ops.SECTION_ORDER]
+    for name, items in groups:
+        if items:
+            out += ["", f"### {name}", "", *items]
+    if not log["entries"]:
+        out += ["", f"No workplans were merged in {log['from'] or 'the history'}..{log['to']}."]
+    return lines(out)
+
+
 def render_merge(result: dict) -> str:
     if "message" in result:
         return result["message"].rstrip()
@@ -314,6 +331,18 @@ def cmd_reject_patch(ctx, *, task: TASK):
 
 # ---------------------------------------------------------------------------
 # routing, hooks and the server
+
+@registry.command(help="the changelog from the squash commits between two tags or commits",
+                  render=render_changelog, method="GET", route="/api/changelog")
+def cmd_changelog(ctx, *, start: Annotated[str, Positional("FROM", "a tag or commit; the latest "
+                                                           "tag before TO when left out",
+                                                           optional=True)] = None,
+                  end: Annotated[str, Positional("TO", "a tag or commit; HEAD when left out",
+                                                 optional=True)] = None,
+                  audience: Annotated[str, Flag("keep the tasks for this audience, and those "
+                                                "with none")] = None):
+    return ops.changelog(start, end, audience)
+
 
 @registry.command(help="the next step after a commit",
                   render=lambda d: " ".join([d["action"], *d["targets"]]),

@@ -44,4 +44,7 @@ Effects:
   use the After form
 - `wp patch show` goes through the pager, as show-patch did
 
-Depends on none.
+Depends: none
+Change: refactor
+Audience: users
+Breaking: the commands are noun then verb, with the workplan's as top-level verbs: add-task is now task add, show-patch patch show, add-workplan new, merge-workplan merge, and so on for every command but init, install, serve, route and status

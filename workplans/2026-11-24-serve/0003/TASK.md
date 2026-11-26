@@ -20,4 +20,6 @@ Effects:
   loads nothing from outside the server
 - TODO.md no longer lists serve
 
-Depends on 0002.
+Depends: 0002
+Change: feat
+Audience: users

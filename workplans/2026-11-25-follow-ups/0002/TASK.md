@@ -13,4 +13,6 @@ Effects:
   as now
 - `git_path` is used only by `install`
 
-Depends on 0001.
+Depends: 0001
+Change: fix
+Audience: users

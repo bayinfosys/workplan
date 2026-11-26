@@ -15,4 +15,6 @@ Effects:
   `install`, as they carry the mark
 - README.md's Routing section says the hooks clear git's variables
 
-Depends on none.
+Depends: none
+Change: fix
+Audience: users

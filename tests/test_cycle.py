@@ -137,7 +137,7 @@ class Cycle(unittest.TestCase):
         task = self.repo.read(f"workplans/{wid}/0001/TASK.md")
         self.assertTrue(task.startswith("# Say goodbye\n"))
         self.assertIn("<The change, in a sentence or two.>", task)
-        self.assertIn("Depends on 0000.", task)
+        self.assertIn("Depends: 0000\n", task)
         self.assertTrue(task.endswith("FROM THE EDITOR\n"))
         self.assertTrue(self.repo.read(f"workplans/{wid}/0001/BREAKDOWN.md").startswith("# Breakdown"))
         self.assertIn("0000  Task number 0\n0001  Say goodbye\n\n## Dropped",
@@ -147,7 +147,7 @@ class Cycle(unittest.TestCase):
         self.repo.wp("task", "add", "Another", "-m", "Append a second line.")
         task = self.repo.read(f"workplans/{wid}/0002/TASK.md")
         self.assertIn("\nAppend a second line.\n", task)
-        self.assertIn("Depends on none.", task)
+        self.assertIn("Depends: none\n", task)
 
     def test_add_task_refusals(self):
         wid = planned(self.repo, tasks=1)

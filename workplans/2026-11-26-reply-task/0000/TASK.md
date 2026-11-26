@@ -15,4 +15,6 @@ Effects:
   the commit message
 - the none agent's patch gen gets the same error back, and retries
 
-Depends on none.
+Depends: none
+Change: fix
+Audience: users

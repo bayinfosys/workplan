@@ -17,4 +17,6 @@ Effects:
   0006 in place of 0003 alone
 - each file follows the NOTES.md template
 
-Depends on none.
+Depends: none
+Change: docs
+Audience: internal

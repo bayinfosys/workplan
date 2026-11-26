@@ -19,4 +19,7 @@ Effects:
 - cli.py holds `main` only; the entry points are unchanged
 - the tests, README.md and SPEC.md use the new names
 
-Depends on 0000.
+Depends: 0000
+Change: refactor
+Audience: users
+Breaking: the commands are named verb-noun: plan is now add-workplan, define-tasks gen-task, produce-patch gen-patch, apply apply-patch, diff show-patch, accept accept-patch, reject reject-patch and merge merge-workplan; status is kept

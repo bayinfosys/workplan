@@ -109,6 +109,7 @@ The workplan, and the commands with no noun:
 | `edit [ID]` | WORKPLAN.md in the editor; commit |
 | `merge [ID] [-m MESSAGE] [--show]` | run `test.command` and stop if it fails; squash the workplan into master, with the message from its template; `--show` prints the message |
 | `status [ID]` | `task list` |
+| `changelog [FROM] [TO] [--audience NAME]` | the changelog in Markdown, from the squash commits between two tags or commits and their tasks' trailers; writes nothing |
 | `route [REV] [--dispatch]` | the next step after a commit |
 | `install` | post-commit and post-merge hooks that run `route --dispatch` |
 | `serve [--port N]` | the board in a local web page, on 127.0.0.1 |
@@ -157,6 +158,31 @@ workplan patch add 0000 reply.txt   # its diff and commit message line
 branch in a separate worktree, and refuses a reply with no diff or one
 that does not apply. In the page, Copy prompt and Paste reply do the
 same, beside Gen tasks and Gen patch.
+
+## Changelog
+
+Each task ends with git trailers saying what kind of change it makes,
+for whom, and what it breaks:
+
+```
+Depends: 0000
+Change: feat
+Audience: users
+Breaking: wp add-task is now wp task add
+```
+
+`workplan changelog` reads the squash commits since the latest tag,
+and each of their tasks' trailers, and prints a changelog: breaking
+changes first, then Added, Fixed, Changed and Other.
+
+```bash
+workplan changelog                     # the latest tag to HEAD
+workplan changelog v0.1.0 v0.2.0       # between two tags or commits
+workplan changelog --audience users    # leave out developers and internal
+```
+
+It reads git and writes nothing; its output can go into CHANGELOG.md
+or a release.
 
 ## Configuration
 

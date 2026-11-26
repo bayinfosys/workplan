@@ -15,4 +15,6 @@ Effects:
   line of its own after the commit, and README.md's walkthrough says
   merge-workplan deletes it
 
-Depends on none.
+Depends: none
+Change: feat
+Audience: users

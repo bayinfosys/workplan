@@ -16,4 +16,6 @@ Effects:
 - README.md and SPEC.md section 4 name `add-task` as the way to write
   a task by hand
 
-Depends on 0003.
+Depends: 0003
+Change: feat
+Audience: users

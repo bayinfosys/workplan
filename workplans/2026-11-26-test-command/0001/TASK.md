@@ -14,4 +14,6 @@ Effects:
   `wp merge` runs it, through workplans/config.toml
 - workplans/BACKLOG.md: the Test command item is removed
 
-Depends on 0000.
+Depends: 0000
+Change: docs
+Audience: users

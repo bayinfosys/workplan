@@ -21,4 +21,6 @@ Effects:
 - README.md's command table, Configuration and Routing sections name
   both files
 
-Depends on 0000.
+Depends: 0000
+Change: feat
+Audience: users
