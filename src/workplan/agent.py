@@ -342,25 +342,28 @@ FILE_HEADER = re.compile(r"^=====\s*(\S+)\s*=====\s*$", re.M)
 
 
 def parse_patch(reply: str, tid: str) -> tuple[str, str]:
-    """The commit message line and the diff in a reply."""
-    message = ""
-    for line in reply.splitlines():
-        line = line.strip().strip("`")
-        line = re.sub(r"^(COMMIT_MSG|Commit message)\s*:\s*", "", line, flags=re.I)
-        if line.startswith(f"{tid} "):
-            message = line
-            break
-
-    patch = ""
-    for block in FENCE.findall(reply):
-        if re.search(r"^(diff --git|--- )", block, re.M):
-            patch = block
+    """The commit message line and the diff in a reply. The line is the
+    first before the diff that starts with a task id of the workplan; it
+    may name another task, which use_patch refuses."""
+    patch, start = "", len(reply)
+    for m in FENCE.finditer(reply):
+        if re.search(r"^(diff --git|--- )", m[1], re.M):
+            patch, start = m[1], m.start()
             break
     if not patch:
         m = re.search(r"^(diff --git|--- )", reply, re.M)
-        patch = reply[m.start():] if m else ""
+        patch, start = (reply[m.start():], m.start()) if m else ("", start)
     if patch and not patch.endswith("\n"):
         patch += "\n"
+
+    message = ""
+    wid = tid.rsplit("/", 1)[0]
+    for line in reply[:start].splitlines():
+        line = line.strip().strip("`")
+        line = re.sub(r"^(COMMIT_MSG|Commit message)\s*:\s*", "", line, flags=re.I)
+        if re.match(rf"{re.escape(wid)}/\d{{4}} ", line):
+            message = line
+            break
     return message, patch
 
 
@@ -380,6 +383,8 @@ def parse_files(reply: str, wid: str) -> dict[str, str]:
 def use_patch(reply: str, workdir: Path, tid: str) -> str:
     """Apply the reply's diff; return an error, or empty on success."""
     message, patch = parse_patch(reply, tid)
+    if message and not message.startswith(f"{tid} "):
+        return f"the reply is for {message.split()[0]}, not {tid}"
     if not patch:
         return "the reply holds no unified diff"
     result = subprocess.run(["git", "apply", "--recount", "--whitespace=nowarn", "-"],

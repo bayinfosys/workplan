@@ -87,6 +87,25 @@ class Manual(unittest.TestCase):
         self.assertEqual(self.repo.git("show", "--format=", "--name-only", "HEAD").split(),
                          sorted([plan, notes]))
 
+    def test_add_patch_refuses_a_reply_for_another_task(self):
+        wid = planned(self.repo, tasks=2)
+        result = self.repo.wp("patch", "add", "0000", ok=False,
+                              input=f"{wid}/0001 Say goodbye\n\n```diff\n{DIFF}```\n")
+        self.assertIn(f"the reply is for {wid}/0001, not {wid}/0000", result.stderr)
+        self.assertFalse((self.repo.path / f"workplans/{wid}/0000/output.patch").exists())
+        self.assertFalse((self.repo.path / f"workplans/{wid}/0000/COMMIT_MSG").exists())
+
+    def test_add_patch_reads_the_commit_line_before_the_diff(self):
+        wid = planned(self.repo, tasks=2)
+        self.repo.write("log.txt", f"{wid}/0000 was planned\n{wid}/0001 is next\n")
+        self.repo.commit_all("log")
+        diff = ("--- a/log.txt\n+++ b/log.txt\n@@ -1,2 +1,3 @@\n"
+                f" {wid}/0000 was planned\n {wid}/0001 is next\n+done\n")
+        out = self.repo.wp("patch", "add", "0000", input=f"Here is the patch.\n\n{diff}")
+        self.assertIn("written from TASK.md's title", out.stderr + out.stdout)
+        self.assertEqual(self.repo.read(f"workplans/{wid}/0000/COMMIT_MSG"),
+                         f"{wid}/0000 Task number 0\n")
+
     def test_add_patch(self):
         wid = planned(self.repo)
         reply = f"Here it is.\n\n{wid}/0000 Say goodbye\n\n```diff\n{DIFF}```\n"
