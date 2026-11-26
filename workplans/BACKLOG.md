@@ -108,3 +108,29 @@ Render examples/demo.tape with VHS for the README and the website.
   through a token-exchange proxy
 - the agent in GitHub Actions: a read-only job returns its result as an
   artefact, and a separate job opens the pull request
+
+## Test command
+
+One command that checks the code, used by merge and by unwind.
+
+- test.command in config.toml; merge runs it on the branch head and
+  refuses to merge when it fails, showing its output
+- a principle for PRINCIPLES.md: each accepted task leaves the test
+  suite passing; tasks may add to it; the suite exists before the
+  workplan
+- SPEC: the definition branch can be rewritten until it is merged
+
+## Unwind
+
+Step back through a workplan's task commits to the last that passes
+test.command, and send the failure to the task after it.
+
+- test each task commit, newest first, in a worktree; reset to the
+  last that passes, with --keep
+- the failure goes into the next task's NOTES.md; its patch is
+  dropped, so patch gen writes it again with the notes in its prompt;
+  the later tasks are accepted again from their saved patches
+- refuse when document commits follow the last passing commit
+- the route sends a NOTES.md change to patch-gen, for full auto
+- the by-hand steps in SPEC; a how-to with a demo workplan of eight
+  tasks and a regression in the fifth
