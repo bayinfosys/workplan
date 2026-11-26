@@ -5,6 +5,31 @@ the tasks already in view. Items are in order of priority. An item
 chosen for work becomes a workplan, and leaves this file in that
 workplan's first commit.
 
+## Release
+
+Changelog, commit and tag, in order.
+
+- release VERSION: changelog from the latest tag to HEAD, headed
+  VERSION, prepended to CHANGELOG.md; committed as "release VERSION";
+  that commit tagged VERSION; refuses unless on master with a clean
+  tree and VERSION unused
+- pushing the tag stays with the maintainer
+- changelog --all: a section per tag, newest first
+- the release workflow writes the GitHub release notes with changelog
+- README's sequence paragraph names release; SPEC by-hand block
+
+## Provenance
+
+Who did what, collected into the squash message from git.
+
+- Co-authored-by from the task commits' authors
+- Suggested-by from the author of the `<id> workplan` commit
+- Reported-by from the author of the commit that added the backlog
+  item, once items are linked to workplans
+- the agent and model named on each task commit; COMMIT_MSG takes
+  trailers after its first line
+- Signed-off-by left to the maintainer: it certifies the DCO
+
 ## Item commands
 
 Items as the fourth noun: an item on the backlog becomes a workplan, a

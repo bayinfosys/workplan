@@ -38,6 +38,14 @@ Run it on full auto for the real vibe coding experience, or manual for the good 
   `patch gen` as soon as they are due. Accepting each patch and
   merging stay with you.
 
+Every step can be done by hand; SPEC.md gives each as git commands.
+Most steps are several git operations in a fixed order: `patch accept`
+applies the patch, checks COMMIT_MSG and commits it with the task's
+files; `merge` runs the tests, squashes, commits and deletes the
+branch. The library ensures that order, checks what a step needs
+before it starts, and restores the tree when a step fails. It reads
+and changes the repository through git commands only.
+
 ## A workplan from start to finish
 
 ```bash

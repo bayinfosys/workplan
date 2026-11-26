@@ -6,6 +6,11 @@ Every task and every review holds to these.
 - every step of the protocol can be carried out by hand with git and
   an editor; SPEC.md gives the step, and a change to a step changes
   SPEC.md in the same task
+- the library ensures the order of the git operations within a step,
+  and restores the tree when one fails
+- the repository is read and changed through git commands only
+- a command exists where a step is several git operations whose order
+  matters; a step that is one git command stays by hand
 - all state is in files and git history; no command keeps state of
   its own
 - templates use substitution only
