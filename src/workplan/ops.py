@@ -92,11 +92,12 @@ def init() -> list[str]:
     return done
 
 
-def plan(name: str, master: str, goal: str | None = None, today: str | None = None) -> dict:
-    """A new workplan: WORKPLAN.md from its template, committed as
-    '<id> workplan' on a new branch from master. With no goal, the editor
-    opens on the rendered template, as git commit does; leaving it
-    unchanged creates nothing."""
+def plan(name: str, master: str, goal: str | None = None, today: str | None = None,
+         text: str | None = None) -> dict:
+    """A new workplan: WORKPLAN.md from its template, or the text given,
+    committed as '<id> workplan' on a new branch from master. With
+    neither a goal nor a text, the editor opens on the rendered template,
+    as git commit does; leaving it unchanged creates nothing."""
     if not plans.NAME.fullmatch(name):
         raise Fail(f"{name}: a workplan name is lower-case words joined by '-'")
     wid = f"{today or datetime.date.today().isoformat()}-{name}"
@@ -110,7 +111,12 @@ def plan(name: str, master: str, goal: str | None = None, today: str | None = No
     rendered = plans.render("documents", "WORKPLAN.md", id=wid,
                                 title=name.replace("-", " "),
                                 goal=" ".join(goal.split()) if goal else GOAL_PLACEHOLDER)
-    if goal:
+    if text is not None:
+        if m := re.search(r"^# Workplan (\S+):", text, re.M):
+            if m[1] != wid:
+                raise Fail(f"the WORKPLAN.md is for {m[1]}, not {wid}")
+        text = text if text.endswith("\n") else text + "\n"
+    elif goal:
         text = rendered
     else:
         with tempfile.TemporaryDirectory(prefix="workplan-") as tmp:
@@ -379,6 +385,8 @@ def accept(task: str, master: str) -> str:
 
     if git.branch() == master:
         raise Fail(f"HEAD is {master}; patch accept commits on the workplan branch")
+    if tid.split("/")[1] not in plans.listed(wid)[0]:
+        raise Fail(f"{tid} is not listed in WORKPLAN.md; add its line under ## Tasks")
     lines = msg.read_text().strip().splitlines()
     if len(lines) != 1 or not lines[0].startswith(f"{tid} "):
         raise Fail(f"{msg}: one line, starting '{tid} '")

@@ -1,5 +1,6 @@
 """A workplan from init to merge, and the states along the way."""
 
+import datetime
 import json
 import tempfile
 import unittest
@@ -63,6 +64,30 @@ class Cycle(unittest.TestCase):
         wid = self.repo.wid()
         self.assertIn("## Goal\n\napp.txt says goodbye.\n",
                       self.repo.read(f"workplans/{wid}/WORKPLAN.md"))
+
+    def test_plan_from_a_reply(self):
+        self.repo.wp("init")
+        wid = f"{datetime.date.today().isoformat()}-greeting"
+        text = f"# Workplan {wid}: greeting\n\n## Goal\n\nA goal from a chat.\n\n## Tasks\n"
+        self.repo.write("reply.md", text)
+        self.repo.wp("new", "greeting", "--reply", "reply.md")
+        self.assertEqual(self.repo.read(f"workplans/{wid}/WORKPLAN.md"), text)
+        self.assertEqual(self.repo.git("log", "-1", "--format=%s"), f"{wid} workplan")
+        self.repo.git("switch", "-q", "master")
+        self.repo.wp("new", "parting", "--reply", "-",
+                     input=text.replace(f"{wid}: greeting", f"{wid[:-8]}parting: parting"))
+        self.assertIn("A goal from a chat.", self.repo.read(f"workplans/{wid[:-8]}parting/WORKPLAN.md"))
+
+    def test_plan_reply_refusals(self):
+        self.repo.wp("init")
+        text = "# Workplan 2000-01-01-greeting: greeting\n\n## Goal\n\nOld.\n"
+        result = self.repo.wp("new", "greeting", "--reply", "-", input=text, ok=False)
+        self.assertIn(f"is for 2000-01-01-greeting, not {datetime.date.today().isoformat()}"
+                      "-greeting", result.stderr)
+        result = self.repo.wp("new", "greeting", "-m", "goal", "--reply", "-", input=text, ok=False)
+        self.assertIn("not both", result.stderr)
+        self.assertEqual(self.repo.git("branch", "--show-current"), "master")
+        self.assertFalse((self.repo.path / "workplans" / "2000-01-01-greeting").exists())
 
     # task gen --------------------------------------------------------
 

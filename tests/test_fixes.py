@@ -35,6 +35,24 @@ class Guards(unittest.TestCase):
         self.assertIn("HEAD is master", result.stderr)
         self.assertEqual(self.repo.git("log", "-1", "--format=%s"), "workplan init")
 
+    def test_accept_refuses_an_unlisted_task(self):
+        wid = planned(self.repo)
+        task = f"workplans/{wid}/0003"
+        self.repo.write(f"{task}/TASK.md", "# A task written by hand\n")
+        self.repo.write(f"{task}/output.patch", "--- a/app.txt\n+++ b/app.txt\n"
+                        "@@ -1 +1,2 @@\n hello\n+goodbye\n")
+        self.repo.write(f"{task}/COMMIT_MSG", f"{wid}/0003 By hand\n")
+        head = self.repo.git("rev-parse", "HEAD")
+        result = self.repo.wp("patch", "accept", "0003", ok=False)
+        self.assertIn(f"{wid}/0003 is not listed in WORKPLAN.md", result.stderr)
+        self.assertEqual(self.repo.git("rev-parse", "HEAD"), head)
+        self.assertEqual(self.repo.read("app.txt"), "hello\n")
+
+        self.repo.wp("patch", "gen", "0000", env=self.env)
+        self.repo.wp("task", "drop", "0000")
+        result = self.repo.wp("patch", "accept", "0000", ok=False)
+        self.assertIn(f"{wid}/0000 is not listed in WORKPLAN.md", result.stderr)
+
     def test_merge_refuses_when_branch_lacks_master(self):
         wid = self.ready()
         self.repo.git("switch", "-q", "master")

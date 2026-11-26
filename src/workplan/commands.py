@@ -153,7 +153,13 @@ def cmd_show_workplan(ctx, *, workplan: WORKPLAN = None):
                   render=lambda r: f"switched to {r['branch']}\ncreated {r['created']}\n"
                   + committed(r))
 def cmd_new_workplan(ctx, *, name: Annotated[str, Positional("NAME", "lower-case words joined by -")],
-                     goal: Annotated[str, Flag("the goal; skips the editor", short="-m")] = None):
+                     goal: Annotated[str, Flag("the goal; skips the editor", short="-m")] = None,
+                     reply: Annotated[str, Flag("a whole WORKPLAN.md, from a chat or a file; "
+                                                "- reads standard input")] = None):
+    if goal and reply:
+        raise Fail("give a goal or a reply, not both")
+    if reply is not None:
+        return ops.plan(name, ctx.master, text=read_reply(ctx, reply))
     if not goal and not ctx.interactive:
         raise Fail("a new workplan needs a goal")
     return ops.plan(name, ctx.master, goal=goal)

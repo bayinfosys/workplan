@@ -80,7 +80,8 @@ To write tasks yourself in place of `task gen`, use
 `new` opens the editor git uses for commit messages, on WORKPLAN.md
 rendered from its template; closing it unchanged creates nothing.
 `new greeting -m "app.txt says goodbye"` writes the goal and skips the
-editor. `edit` and `task edit` open the editor the same way on an
+editor. `new greeting --reply WORKPLAN.md` takes a whole WORKPLAN.md,
+written by a chat or by hand; its heading must name the new id. `edit` and `task edit` open the editor the same way on an
 existing document.
 
 Every command that changes a document commits it, on the checked-out
@@ -104,7 +105,7 @@ The workplan, and the commands with no noun:
 | `init` | create `workplans/` with README, PRINCIPLES.md, BACKLOG.md, config.toml and dispatch.sh; add the working files to .gitignore; commit |
 | `list` | every workplan, in the tree or on another branch, and whether it is editable |
 | `show [ID]` | the workplan's goal and its tasks' states |
-| `new NAME [-m GOAL]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, on a new branch from master; commit |
+| `new NAME [-m GOAL \| --reply FILE]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, or the whole file given, on a new branch from master; commit |
 | `edit [ID]` | WORKPLAN.md in the editor; commit |
 | `merge [ID] [-m MESSAGE] [--show]` | squash the workplan into master, with the message from its template; `--show` prints the message |
 | `status [ID]` | `task list` |
