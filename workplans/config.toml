@@ -26,3 +26,6 @@ attempts = 3           # for none
 timeout = 1800
 setup = ""             # shell command run in the worktree before the agent
 command = []           # argv for command; "{prompt}" is replaced, else stdin
+
+[test]
+command = "python -m unittest discover -s tests -q"   # merge runs it first

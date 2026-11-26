@@ -107,7 +107,7 @@ The workplan, and the commands with no noun:
 | `show [ID]` | the workplan's goal and its tasks' states |
 | `new NAME [-m GOAL \| --reply FILE]` | `workplans/<date>-NAME/WORKPLAN.md` from its template, or the whole file given, on a new branch from master; commit |
 | `edit [ID]` | WORKPLAN.md in the editor; commit |
-| `merge [ID] [-m MESSAGE] [--show]` | squash the workplan into master, with the message from its template; `--show` prints the message |
+| `merge [ID] [-m MESSAGE] [--show]` | run `test.command` and stop if it fails; squash the workplan into master, with the message from its template; `--show` prints the message |
 | `status [ID]` | `task list` |
 | `route [REV] [--dispatch]` | the next step after a commit |
 | `install` | post-commit and post-merge hooks that run `route --dispatch` |
@@ -179,6 +179,7 @@ environment only.
 | `agent.setup` | `WORKPLAN_AGENT_SETUP` | |
 | `agent.command` | `WORKPLAN_AGENT_COMMAND` | `[]` |
 | `agent.attempts`, `agent.timeout` | | `3`, `1800` |
+| `test.command` | `WORKPLAN_TEST_COMMAND` | |
 
 ## Agents
 
@@ -329,6 +330,9 @@ package's version.
 ```bash
 python -m unittest discover -s tests
 ```
+
+workplans/config.toml sets this as `test.command`, so `wp merge` runs
+it, quietly, before squashing a workplan into master.
 
 The tests build temporary repositories, compare each command with its
 "By hand" block in SPEC.md, rehearse two clones sharing one origin, and

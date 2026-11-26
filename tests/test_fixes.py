@@ -53,6 +53,31 @@ class Guards(unittest.TestCase):
         result = self.repo.wp("patch", "accept", "0000", ok=False)
         self.assertIn(f"{wid}/0000 is not listed in WORKPLAN.md", result.stderr)
 
+    def test_merge_runs_the_test_command(self):
+        wid = self.ready()
+        out = self.repo.wp("merge", env={"WORKPLAN_TEST_COMMAND": "grep -q goodbye app.txt"}).stdout
+        self.assertIn("test.command passed: grep -q goodbye app.txt", out)
+        self.assertEqual(self.repo.git("branch", "--show-current"), "master")
+        self.assertIn(f"{wid} ", self.repo.git("log", "-1", "--format=%s"))
+
+    def test_merge_stops_when_the_test_command_fails(self):
+        wid = self.ready()
+        head = self.repo.git("rev-parse", "master")
+        result = self.repo.wp("merge", ok=False,
+                              env={"WORKPLAN_TEST_COMMAND": "echo three failed; exit 3"})
+        self.assertIn("test.command failed (exit 3)", result.stderr)
+        self.assertIn("three failed", result.stderr)
+        self.assertEqual(self.repo.git("branch", "--show-current"), f"workplan/{wid}/definition")
+        self.assertEqual(self.repo.git("rev-parse", "master"), head)
+
+    def test_merge_runs_the_test_command_on_the_branch_alone(self):
+        wid = self.ready()
+        self.repo.git("switch", "-q", "master")
+        result = self.repo.wp("merge", wid, ok=False, env={"WORKPLAN_TEST_COMMAND": "true"})
+        self.assertIn(f"switch to workplan/{wid}/definition to run test.command", result.stderr)
+        out = self.repo.wp("merge", wid, env={"WORKPLAN_TEST_COMMAND": ""}).stdout
+        self.assertNotIn("test.command", out)
+
     def test_merge_refuses_when_branch_lacks_master(self):
         wid = self.ready()
         self.repo.git("switch", "-q", "master")

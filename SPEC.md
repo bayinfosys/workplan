@@ -344,7 +344,10 @@ workplan at once. The name of `master` is configurable.
 ## 9. Merging
 
 A workplan is squash-merged into master when every task it lists is
-committed on the branch or dropped, and the branch contains master.
+committed on the branch or dropped, the branch contains master, and
+the project's tests pass on the branch. Until then the definition
+branch is the workplan's own, and may be rewritten, by a reset to an
+earlier task for instance; once merged, master holds its record.
 
 The message is rendered from the SQUASH_COMMIT_MSG template: the
 workplan id and title, the goal, the task commit subjects in order,
@@ -374,6 +377,7 @@ By hand:
 ```bash
 w=2026-11-24-one-package; b=workplan/$w/definition
 git merge-base --is-ancestor master $b || echo "rebase $b onto master first"
+git switch $b && <the project's test command> || echo "the tests fail; merge nothing"
 { echo "$w <title>"; echo; echo "<goal>"; echo
   git log --reverse --format=%s master..$b | grep "^$w/[0-9]\{4\} "; echo
   echo "Workplan: workplans/$w/WORKPLAN.md"; } > /tmp/msg

@@ -124,7 +124,8 @@ def committed(result: dict) -> str:
 def render_merge(result: dict) -> str:
     if "message" in result:
         return result["message"].rstrip()
-    return lines([result["commit"], "", "next:"] + [f"  {n}" for n in result["next"]])
+    tested = [f"test.command passed: {result['tested']}"] if result.get("tested") else []
+    return lines(tested + [result["commit"], "", "next:"] + [f"  {n}" for n in result["next"]])
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +178,8 @@ def cmd_edit_workplan(ctx, *, workplan: WORKPLAN = None,
     return ops.save_document(wid, "WORKPLAN.md", text)
 
 
-@registry.command(help="squash the workplan into master; the editor opens on the message",
+@registry.command(help="run test.command, then squash the workplan into master; the editor "
+                       "opens on the message",
                   render=render_merge)
 def cmd_merge_workplan(ctx, *, workplan: WORKPLAN = None,
                        message: Annotated[str, Flag("the message; skips the editor",
@@ -185,7 +187,8 @@ def cmd_merge_workplan(ctx, *, workplan: WORKPLAN = None,
                        show: Annotated[bool, Flag("print the message; merge nothing")] = False):
     if show:
         return {"message": ops.merge_message(workplan, ctx.master)}
-    return ops.merge(workplan, ctx.master, edit=ctx.interactive, message=message)
+    return ops.merge(workplan, ctx.master, edit=ctx.interactive, message=message,
+                     test_command=ctx.cfg["test"]["command"])
 
 
 # ---------------------------------------------------------------------------

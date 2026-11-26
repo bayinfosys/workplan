@@ -109,17 +109,6 @@ Render examples/demo.tape with VHS for the README and the website.
 - the agent in GitHub Actions: a read-only job returns its result as an
   artefact, and a separate job opens the pull request
 
-## Test command
-
-One command that checks the code, used by merge and by unwind.
-
-- test.command in config.toml; merge runs it on the branch head and
-  refuses to merge when it fails, showing its output
-- a principle for PRINCIPLES.md: each accepted task leaves the test
-  suite passing; tasks may add to it; the suite exists before the
-  workplan
-- SPEC: the definition branch can be rewritten until it is merged
-
 ## Unwind
 
 Step back through a workplan's task commits to the last that passes

@@ -9,6 +9,7 @@ checked out.
 import datetime
 import re
 import stat
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -476,17 +477,22 @@ def merge_message(arg: str | None, master: str) -> str:
     return squash_message(wid, master, ready_to_merge(wid, master))
 
 
-def merge(arg: str | None, master: str, edit: bool = True, message: str | None = None) -> dict:
+def merge(arg: str | None, master: str, edit: bool = True, message: str | None = None,
+          test_command: str = "") -> dict:
     """Squash workplan/<id>/definition into master. The message is the
     one given, or the SQUASH_COMMIT_MSG template rendered and opened in
     the editor, as git commit does.
 
     Every listed task must be committed or dropped, and the branch must
-    contain master. On any failure, master and the tree are restored;
-    on success, the local branch is deleted.
+    contain master. With a test command, it runs first in the working
+    tree, with the branch checked out, and must pass. On any failure,
+    master and the tree are restored; on success, the local branch is
+    deleted.
     """
     wid = plans.workplan_id(arg)
     branch = ready_to_merge(wid, master)
+    if test_command:
+        run_tests(test_command, branch)
 
     text = message if message is not None else squash_message(wid, master, branch)
 
@@ -510,8 +516,21 @@ def merge(arg: str | None, master: str, edit: bool = True, message: str | None =
     return {
         "workplan": wid,
         "commit": git.run("log", "-1", "--format=%h %s"),
+        "tested": test_command or None,
         "next": [f"git push origin {master}", f"git push origin --delete {branch}"],
     }
+
+
+def run_tests(command: str, branch: str) -> None:
+    """Run test.command in the working tree with the branch checked out;
+    fail with the end of its output when it fails."""
+    if git.branch() != branch:
+        raise Fail(f"switch to {branch} to run test.command")
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        output = (result.stdout + result.stderr).strip()
+        raise Fail(f"test.command failed (exit {result.returncode}): {command}\n"
+                   f"{output[-3000:]}\nnothing merged")
 
 
 # ---------------------------------------------------------------------------

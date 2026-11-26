@@ -18,5 +18,7 @@ Every task and every review holds to these.
   starts a workplan's branch, and merge, which squashes it
   into master, are the commands that change branches
 - documentation changes with the code, in the same task
+- the project has a test suite before a workplan starts; each accepted
+  task leaves it passing, and tasks may add to it
 - a change a task needs outside its scope is raised for a later
   workplan

@@ -33,6 +33,9 @@ DEFAULTS = {
         "setup": "",
         "command": [],
     },
+    "test": {
+        "command": "",
+    },
 }
 
 # environment variable -> (section or None, key, conversion)
@@ -46,6 +49,7 @@ OVERRIDES = {
     "WORKPLAN_AGENT_MODEL": ("agent", "model", str),
     "WORKPLAN_AGENT_SETUP": ("agent", "setup", str),
     "WORKPLAN_AGENT_COMMAND": ("agent", "command", shlex.split),
+    "WORKPLAN_TEST_COMMAND": ("test", "command", str),
 }
 
 PATH = plans.ROOT / "config.toml"
