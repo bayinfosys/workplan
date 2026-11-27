@@ -181,6 +181,18 @@ class Guards(unittest.TestCase):
                      )
         self.assertEqual(self.repo.git("log", "-1", "--format=%B").strip(), "Short message\n\nBody")
 
+    def test_init_writes_the_parent_branch(self):
+        self.repo.git("branch", "-q", "-m", "main")
+        self.repo.wp("init")
+        self.assertIn('parent = "main"', self.repo.read("workplans/config.toml"))
+        self.repo.wp("new", "greeting", "-m", "A goal.")
+        self.assertEqual(self.repo.git("merge-base", "HEAD", "main"),
+                         self.repo.git("rev-parse", "main"))
+        self.repo.git("switch", "-q", "main")
+        result = self.repo.wp("new", "parting", "-m", "A goal.", ok=False,
+                              env={"WORKPLAN_PARENT": "trunk"})
+        self.assertIn("no branch trunk", result.stderr)
+
     def test_init_writes_an_executable_dispatch_script(self):
         self.repo.wp("init")
         script = self.repo.path / "workplans" / "dispatch.sh"

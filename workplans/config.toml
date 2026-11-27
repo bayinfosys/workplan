@@ -1,7 +1,7 @@
 # workplan configuration. Environment variables override each value
 # (see the workplan README); API keys come from the environment only.
 
-master = "master"
+parent = "master"      # the branch workplans start from and merge into
 
 [llm]
 # Any OpenAI-compatible endpoint; requests go to <api_base>/chat/completions.

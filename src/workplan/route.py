@@ -67,7 +67,7 @@ def candidates(f: dict, master: str) -> dict[str, list[str]]:
 def decide(rev: str, cfg: dict) -> dict:
     """The action and its targets, from the rules or the model."""
     f = facts(rev)
-    found = candidates(f, cfg["master"])
+    found = candidates(f, cfg["parent"])
     rule = next((a for a in ACTIONS if a in found), "none")
     action, source, model = rule, "rules", None
 

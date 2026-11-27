@@ -1,6 +1,8 @@
 # The workplan protocol
 
-Version 0.2
+Version 0.3. The protocol is pre-1.0: until 1.0 it changes without
+compatibility between versions. Its version follows the minor version
+of the `workplan` package.
 
 A `WORKPLAN.md` is a unit of work stored in the git repository of a
 project. Each workplan is broken down into a series of tasks, each
@@ -28,6 +30,14 @@ This document defines the files, their formats, the states and the
 branches, then gives each protocol command as the git commands it
 performs. The `workplan` command, `wp`, implements it; its usage is in
 README.md.
+
+| Term | Meaning |
+|---|---|
+| workplan | one goal, its tasks, and the branch that holds them until merged |
+| task | one change: TASK.md, BREAKDOWN.md, and one commit when accepted |
+| patch | a task's change as output.patch and COMMIT_MSG, before it is committed |
+| state | where a task stands, read from its files and the git history |
+| parent branch | the branch workplans start from and merge into: master, main or another |
 
 ## 1. Repository layout
 
@@ -223,12 +233,14 @@ Text in angle brackets in a template is for the author to replace.
    commit it with COMMIT_MSG, together with the task's directory and
    WORKPLAN.md; push.
 4. Review the workplan as a whole (section 10).
-5. Squash-merge to master (section 9).
+5. Squash-merge to the parent branch (section 9).
 
-The maintainer authors every commit. AI assistants do not commit.
+The maintainer authors every commit, through the commands or by hand;
+agents write files and do not commit.
 
-Testing is the maintainer's: after applying a patch, after committing
-a task, before merging or after. The protocol does not record it.
+The project's tests run before the squash merge, and the maintainer
+may run them at any step before. Each accepted task leaves them
+passing.
 
 ## 6. The patch loop
 
@@ -254,7 +266,7 @@ marker files. The first state that holds is the state:
 
 | State | Holds when |
 |---|---|
-| `merged` | a commit on master has a line starting with the task id and a space |
+| `merged` | a commit on the parent branch has a line starting with the task id and a space |
 | `complete` | a commit on the current branch has that line |
 | `dropped` | WORKPLAN.md lists the task under `## Dropped` |
 | `testing` | output.patch is in the index or the tree, uncommitted |
@@ -273,7 +285,7 @@ Read with git:
 
 ```bash
 t=2026-11-24-one-package/0003
-git log master -E --grep="^$t " --format='%h %s' -n 1      # merged
+git log $parent -E --grep="^$t " --format='%h %s' -n 1     # merged
 git log HEAD   -E --grep="^$t " --format='%h %s' -n 1      # complete
 git apply -R --check workplans/$t/output.patch             # testing
 git apply    --check workplans/$t/output.patch             # development
@@ -283,8 +295,8 @@ git apply    --check workplans/$t/output.patch             # development
 
 | Branch | Holds | From | Into |
 |---|---|---|---|
-| `master` | integrated, tested code; one commit per workplan | -- | -- |
-| `workplan/<id>/definition` | the workplan's files and one commit per task | master | master, squashed |
+| parent, such as `master` | integrated, tested code; one commit per workplan | -- | -- |
+| `workplan/<id>/definition` | the workplan's files and one commit per task | parent | parent, squashed |
 | `workplan/<id>/task/<nnnn>` | one task, branched from the definition branch | `workplan/<id>/definition` | `workplan/<id>/definition` |
 
 Git stores a branch name as a path, so no branch name can be the
@@ -297,15 +309,17 @@ git branch -r --list 'origin/workplan/<id>/*'         # one workplan and its tas
 ```
 
 Task branches are needed only when several people work on the same
-workplan at once. The name of `master` is configurable.
+workplan at once. The parent branch is named in the configuration:
+master, main or another.
 
 ## 9. Merging
 
-A workplan is squash-merged into master when every task it lists is
-committed on the branch or dropped, the branch contains master, and
+A workplan is squash-merged into the parent branch when every task it
+lists is committed on the branch or dropped, the branch contains the
+parent, and
 the project's tests pass on the branch. Until then the definition
 branch is the workplan's own, and may be rewritten, by a reset to an
-earlier task for instance; once merged, master holds its record.
+earlier task for instance; once merged, the parent holds its record.
 
 The message is rendered from the SQUASH_COMMIT_MSG template: the
 workplan id and title, the goal, the task commit subjects in order,
@@ -328,13 +342,13 @@ BREAKING-CHANGE: the packages bayis and marigold_cli are now marigold
 Workplan: workplans/2026-11-24-one-package/WORKPLAN.md
 ```
 
-Every task id then reaches master's history, where its state reads
-`merged`. The workplan's directory stays on master as the record of
+Every task id then reaches the parent's history, where its state reads
+`merged`. The workplan's directory stays on the parent as the record of
 the work. Tagging the branch before deleting it is the maintainer's
 choice.
 
 `git log --format='%h %s %(trailers:key=Workplan,valueonly)'` lists
-the workplan behind each commit on master.
+the workplan behind each commit on the parent branch.
 
 ## 10. Review
 
@@ -349,15 +363,15 @@ answers:
 Read with git:
 
 ```bash
-git diff master...workplan/2026-11-24-one-package/definition    # the whole workplan
-git log -p --reverse master..workplan/2026-11-24-one-package/definition   # task by task
+git diff $parent...workplan/2026-11-24-one-package/definition    # the whole workplan
+git log -p --reverse $parent..workplan/2026-11-24-one-package/definition   # task by task
 ```
 
 ## 11. Working together
 
 - Fetch before starting work: `git fetch --prune`.
-- Each workplan has one owner. When master moves while a workplan is
-  open, the owner rebases its branch onto master and pushes; task
+- Each workplan has one owner. When the parent moves while a workplan
+  is open, the owner rebases its branch onto it and pushes; task
   branches rebase onto the workplan branch the same way.
 - Tasks whose files do not overlap may run in parallel on task
   branches; tasks that share files run in sequence.
@@ -380,7 +394,7 @@ w=2026-11-24-one-package                          # workplan id
 n=0003                                            # task number
 t=workplans/$w/$n                                 # task directory
 b=workplan/$w/definition                          # workplan branch
-master=master                                     # integration branch
+parent=master                                     # parent branch: master, main, ...
 T=<templates>/documents                           # document templates
 ```
 
@@ -399,11 +413,11 @@ git commit     -m "workplan init" -- workplans .gitignore
 
 ## wp new
 
-A workplan on a new branch from master. `--reply FILE` gives the whole
+A workplan on a new branch from the parent branch. `--reply FILE` gives the whole
 WORKPLAN.md in place of the template.
 
 ```bash
-git switch     -c $b $master
+git switch     -c $b $parent
 mkdir -p workplans/$w
 cp $T/WORKPLAN.md workplans/$w/
 $EDITOR workplans/$w/WORKPLAN.md                  # replace $id, $title, $goal
@@ -424,20 +438,21 @@ git commit     -m "$w edit WORKPLAN.md" -- workplans/$w/WORKPLAN.md
 
 ## wp merge
 
-Squash the workplan into master once every listed task is committed or
-dropped, the branch contains master and the tests pass (section 9).
+Squash the workplan into the parent branch once every listed task is
+committed or dropped, the branch contains the parent and the tests
+pass (section 9).
 Pushing is the maintainer's.
 
 ```bash
-git merge-base --is-ancestor $master $b           # else rebase $b onto $master
+git merge-base --is-ancestor $parent $b           # else rebase $b onto $parent
 git switch     $b
 <the project's test command>                      # stop if it fails
 { echo "$w <title>"; echo; echo "<goal>"; echo
-  git log --reverse --format=%s $master..$b | grep "^$w/[0-9]\{4\} "; echo
+  git log --reverse --format=%s $parent..$b | grep "^$w/[0-9]\{4\} "; echo
   for f in workplans/$w/[0-9][0-9][0-9][0-9]/TASK.md; do
     git interpret-trailers --parse "$f" | sed -n 's/^Breaking: /BREAKING-CHANGE: /p'
   done; echo "Workplan: workplans/$w/WORKPLAN.md"; } > /tmp/msg
-git switch     $master
+git switch     $parent
 git merge      --squash $b
 git commit     -e -F /tmp/msg                     # on failure: reset --merge, switch $b
 git branch     -D $b
@@ -524,9 +539,9 @@ git diff       --cached                           # read it; run the tests
 
 ## wp patch accept
 
-Commit the patch with the task's files. Refused on master, for a task
-not listed under ## Tasks, and when COMMIT_MSG is not one line
-starting with the task id.
+Commit the patch with the task's files. Refused on the parent branch,
+for a task not listed under ## Tasks, and when COMMIT_MSG is not one
+line starting with the task id.
 
 ```bash
 git apply      --index $t/output.patch            # unless applied already

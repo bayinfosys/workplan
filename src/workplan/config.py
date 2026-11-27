@@ -13,7 +13,7 @@ from workplan import plans
 from workplan.git import Fail
 
 DEFAULTS = {
-    "master": "master",
+    "parent": "master",
     "llm": {
         "api_base": "http://localhost:8000/v1",
         "api_key_env": "WORKPLAN_API_KEY",
@@ -40,7 +40,7 @@ DEFAULTS = {
 
 # environment variable -> (section or None, key, conversion)
 OVERRIDES = {
-    "WORKPLAN_MASTER": (None, "master", str),
+    "WORKPLAN_PARENT": (None, "parent", str),
     "WORKPLAN_API_BASE": ("llm", "api_base", str),
     "WORKPLAN_ROUTE_CLASSIFIER": ("route", "classifier", str),
     "WORKPLAN_ROUTE_MODEL": ("route", "model", str),

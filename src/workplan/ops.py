@@ -70,7 +70,13 @@ def init() -> list[str]:
         path = plans.ROOT / name
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(plans.template_text("project", name))
+            text = plans.template_text("project", name)
+            if name == "config.toml":
+                current = subprocess.run(["git", "symbolic-ref", "--short", "-q", "HEAD"],
+                                         capture_output=True, text=True).stdout.strip()
+                text = re.sub(r'^parent = "master"', f'parent = "{current or "master"}"', text,
+                              count=1, flags=re.M)
+            path.write_text(text)
             if name == "dispatch.sh":
                 path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
             done.append(f"created {path}")

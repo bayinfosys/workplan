@@ -4,7 +4,8 @@ Plan and record development work in git, for agent-driven and
 AI-assisted development.
 
 A workplan breaks one goal into tasks. Each task is one commit; the
-workplan reaches master as one squash commit listing every task. The
+workplan reaches the parent branch, master or main, as one squash
+commit listing every task. The
 plans and the task definitions are Markdown files in `workplans/`, and
 every task's state comes from git history. Any clone holds the whole
 record, and every step can be done by hand with git and an editor:
@@ -16,13 +17,34 @@ OpenAI-compatible endpoint, defines the tasks and produces each task's
 patch in a separate worktree. The maintainer reads each diff and
 accepts or rejects it.
 
+- **Git as state.** Plans, tasks and their states are files and
+  commits; there is no other store, and any clone is the whole record.
+- **A protocol, not a service.** No server, no account, any agent or
+  none; [PROTOCOL.md](PROTOCOL.md) is enough to implement it again.
+
 ## Install
 
 ```bash
 pipx install workplan
 ```
 
-Python 3.11 or later and git. No other dependencies.
+Python 3.11 or later and git. No other dependencies. It runs on
+Linux; the hooks and dispatch.sh need a POSIX shell.
+
+## Try it on this repository
+
+This repository is planned with workplan: every change since v0.1.0
+is a workplan in `workplans/`, merged as one squash commit.
+
+```bash
+git clone https://github.com/bayinfosys/workplan
+cd workplan
+pipx install workplan
+wp list                            # the workplans, and where they are held
+wp show 2026-11-26-change-kinds    # a workplan's goal and its tasks' states
+wp changelog v0.1.0                # what changed since v0.1.0, from git alone
+wp serve                           # the board, in a local web page
+```
 
 `wp` is installed as a short name for `workplan`. WP-CLI, the WordPress
 command line, also installs `wp`; where both are installed, use
@@ -66,7 +88,7 @@ workplan patch show 0000           # the task, its commit, its dependencies and 
 workplan patch accept 0000         # commit it with the task's files; or: patch reject
 workplan status
 
-workplan merge                     # squash into master; the editor opens on the message;
+workplan merge                     # squash into the parent branch; the editor opens on the message;
                                    # the local definition branch is deleted
 ```
 
@@ -102,9 +124,6 @@ branch and with nothing else that is staged: `new` as `<id> workplan`,
 Every command also runs as `wp`: `wp new greeting`, `wp task add`,
 `wp patch show 0000`.
 
-`examples/demo.sh` runs this cycle in a temporary repository with a
-scripted agent.
-
 ## Commands
 
 Protocol commands change the repository in the protocol's terms; each
@@ -113,9 +132,9 @@ links to its git commands in PROTOCOL.md.
 | Command | Does |
 |---|---|
 | [`init`](PROTOCOL.md#wp-init) | create `workplans/` with README, PRINCIPLES.md, BACKLOG.md, config.toml and dispatch.sh; add the working files to .gitignore; commit |
-| [`new NAME [-m GOAL \| --reply FILE]`](PROTOCOL.md#wp-new) | `workplans/<date>-NAME/WORKPLAN.md` from its template, or the whole file given, on a new branch from master; commit |
+| [`new NAME [-m GOAL \| --reply FILE]`](PROTOCOL.md#wp-new) | `workplans/<date>-NAME/WORKPLAN.md` from its template, or the whole file given, on a new branch from the parent branch; commit |
 | [`edit [ID]`](PROTOCOL.md#wp-edit) | WORKPLAN.md in the editor; commit |
-| [`merge [ID] [-m MESSAGE] [--show]`](PROTOCOL.md#wp-merge) | run `test.command` and stop if it fails; squash the workplan into master, with the message from its template; `--show` prints the message |
+| [`merge [ID] [-m MESSAGE] [--show]`](PROTOCOL.md#wp-merge) | run `test.command` and stop if it fails; squash the workplan into the parent branch, with the message from its template; `--show` prints the message |
 | [`task add TITLE [--depend N] [-m CHANGE]`](PROTOCOL.md#wp-task-add) | the next task's TASK.md and BREAKDOWN.md from their templates, and its line in WORKPLAN.md; the editor opens on TASK.md; commit |
 | `task add --reply FILE` | the new tasks in a `task gen` reply from a chat; `-` reads standard input; commit |
 | [`task gen [ID] [--prompt]`](PROTOCOL.md#wp-task-gen) | the agent writes each new task's TASK.md and BREAKDOWN.md; they are listed in WORKPLAN.md and committed with it; `--prompt` prints the prompt for a chat |
@@ -211,7 +230,7 @@ environment only.
 
 | Key | Variable | Default |
 |---|---|---|
-| `master` | `WORKPLAN_MASTER` | `master` |
+| `parent` | `WORKPLAN_PARENT` | `master`; `init` writes the branch checked out |
 | `llm.api_base` | `WORKPLAN_API_BASE` | `http://localhost:8000/v1` |
 | `llm.api_key_env` | | `WORKPLAN_API_KEY` |
 | `llm.params` | | `{}`, added to each request body |
@@ -316,7 +335,7 @@ The rules take the first action in this table that has targets:
 
 | Action | When | Targets |
 |---|---|---|
-| `complete` | a commit on master with a `Workplan:` trailer | the workplan |
+| `complete` | a commit on the parent branch with a `Workplan:` trailer | the workplan |
 | `review` | code changed in a commit whose subject is a task id | the task |
 | `patch-gen` | TASK.md or BREAKDOWN.md changed | each task |
 | `task-gen` | WORKPLAN.md changed | the workplan |
@@ -427,6 +446,18 @@ git push origin v0.1.0
 master; on a tag it publishes the package to PyPI and creates the
 GitHub release. It runs in the `release` environment and needs the
 repository secret `PYPI_API_TOKEN`.
+
+## Removing workplan
+
+```bash
+rm .git/hooks/post-commit .git/hooks/post-merge   # if workplan install wrote them
+$EDITOR .gitignore                                # remove the two workplans/ lines
+git rm -r workplans && git commit -m "remove workplans"
+pipx uninstall workplan
+```
+
+The history keeps every workplan's squash commit and its Workplan
+trailer.
 
 ## Licence
 

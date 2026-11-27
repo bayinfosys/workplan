@@ -411,8 +411,15 @@ def use_files(reply: str, workdir: Path, wid: str) -> str:
     return ""
 
 
+NO_AGENT = ("no agent configured: set agent.name to claude-code or codex, or agent.model and "
+            "llm.api_base for the none agent, in workplans/config.toml; or run with --prompt, "
+            "paste the prompt into a chat, and give its reply to task add --reply or patch add")
+
+
 def run_none(workdir: Path, prompt: str, cfg: dict, action: str, target: str) -> str:
     agent = cfg["agent"]
+    if not agent["model"]:
+        raise Fail(NO_AGENT)
     messages = [{"role": "user", "content": prompt}]
     attempts = max(1, int(agent["attempts"]))
     use = use_patch if action == "patch-gen" else use_files

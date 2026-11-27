@@ -123,5 +123,22 @@ class Endpoint(unittest.TestCase):
         self.assertTrue(out.startswith(f"task-gen {wid} | route: llm chose task-gen"), out)
 
 
+class NoAgent(unittest.TestCase):
+    def setUp(self):
+        self.repo = Repo()
+
+    def tearDown(self):
+        self.repo.cleanup()
+
+    def test_the_failure_says_how_to_go_on(self):
+        planned(self.repo)
+        env = {"WORKPLAN_AGENT": "none", "WORKPLAN_AGENT_MODEL": ""}
+        for args in (["task", "gen"], ["patch", "gen", "0000"]):
+            result = self.repo.wp(*args, ok=False, env=env)
+            self.assertIn("no agent configured: set agent.name to claude-code or codex",
+                          result.stderr)
+            self.assertIn("task add --reply or patch add", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

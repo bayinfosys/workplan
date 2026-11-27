@@ -35,13 +35,13 @@ def cli_context() -> Context:
     """The context of a CLI run: the repository's root, its config."""
     os.chdir(git.toplevel())
     cfg = config.load()
-    return Context(cfg, cfg["master"], interactive=True)
+    return Context(cfg, cfg["parent"], interactive=True)
 
 
 def http_context() -> Context:
     """The context of an HTTP request: the config as it is now."""
     cfg = config.load()
-    return Context(cfg, cfg["master"], interactive=False)
+    return Context(cfg, cfg["parent"], interactive=False)
 
 
 def read_reply(ctx: Context, reply: str | None) -> str:
