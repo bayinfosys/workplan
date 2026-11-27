@@ -16,7 +16,7 @@ PROTOCOL = SRC.parent / "PROTOCOL.md"
 class Protocol(unittest.TestCase):
     def test_the_protocol_commands(self):
         self.assertEqual(sorted(c.name for c in registry.commands if c.protocol), sorted([
-            "init", "new", "edit", "merge", "task add", "task gen", "task edit", "task drop",
+            "init", "new", "edit", "merge", "publish", "task add", "task gen", "task edit", "task drop",
             "patch add", "patch gen", "patch apply", "patch accept", "patch reject",
             "patch drop"]))
 

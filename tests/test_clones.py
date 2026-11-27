@@ -91,6 +91,49 @@ class TwoClones(unittest.TestCase):
                          {"0000": "complete", "0001": "refinement"})
         self.assertEqual(data["tasks"][1]["depends"], [f"{wid}/0000"])
 
+    def merged(self) -> str:
+        """A workplan with a task branch on origin, merged by Alice."""
+        wid = planned(self.alice, tasks=2, agent=self.agent)
+        for n in ("0000", "0001"):
+            self.alice.wp("patch", "gen", n, env=self.env)
+            self.alice.wp("patch", "accept", n)
+        self.alice.git("push", "-q", "origin", "master", f"workplan/{wid}/definition",
+                       f"workplan/{wid}/definition:workplan/{wid}/task/0000")
+        self.alice.wp("merge")
+        return wid
+
+    def heads(self) -> str:
+        return self.alice.git("ls-remote", "--heads", "origin")
+
+    def test_publish(self):
+        wid = self.merged()
+        out = self.alice.wp("publish").stdout
+        self.assertIn("pushed master to origin", out)
+        self.assertIn(f"deleted workplan/{wid}/definition", out)
+        self.assertIn(f"deleted workplan/{wid}/task/0000", out)
+        self.assertEqual(self.alice.git("rev-parse", "origin/master"),
+                         self.alice.git("rev-parse", "master"))
+        self.assertNotIn("workplan/", self.heads())
+
+    def test_publish_stops_when_the_push_fails(self):
+        wid = self.merged()
+        bob = self.clone("bob")
+        bob.write("other.txt", "other\n")
+        bob.commit_all("other work")
+        bob.git("push", "-q", "origin", "master")
+        result = self.alice.wp("publish", ok=False)
+        self.assertIn("push", result.stderr)
+        self.assertIn(f"workplan/{wid}/definition", self.heads())
+        self.assertIn(f"workplan/{wid}/task/0000", self.heads())
+
+    def test_publish_refusals(self):
+        wid = planned(self.alice, tasks=2, agent=self.agent)
+        result = self.alice.wp("publish", wid, ok=False)
+        self.assertIn("publish runs with master checked out", result.stderr)
+        self.alice.git("switch", "-q", "master")
+        result = self.alice.wp("publish", wid, ok=False)
+        self.assertIn(f"{wid} is not merged into master", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

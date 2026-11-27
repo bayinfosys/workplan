@@ -90,12 +90,15 @@ workplan status
 
 workplan merge                     # squash into the parent branch; the editor opens on the message;
                                    # the local definition branch is deleted
+workplan publish                   # push the parent branch; delete the workplan's
+                                   # branches on the remote
 ```
 
 The commands that complete a step or change a document commit it:
 `init`, `new`, `edit`, `task add`, `task gen`, `task edit`,
 `task drop`, `patch accept` and `merge`. `patch apply` stages a patch
-for review and commits nothing. Pushing is the maintainer's.
+for review and commits nothing. `publish` is the only command that
+pushes to a branch the remote already has.
 
 The workplan's commands are verbs on their own: `new`, `list`, `show`,
 `edit` and `merge`; `new` and `merge` are the two that change branches.
@@ -135,6 +138,7 @@ links to its git commands in PROTOCOL.md.
 | [`new NAME [-m GOAL \| --reply FILE]`](PROTOCOL.md#wp-new) | `workplans/<date>-NAME/WORKPLAN.md` from its template, or the whole file given, on a new branch from the parent branch; commit |
 | [`edit [ID]`](PROTOCOL.md#wp-edit) | WORKPLAN.md in the editor; commit |
 | [`merge [ID] [-m MESSAGE] [--show]`](PROTOCOL.md#wp-merge) | run `test.command` and stop if it fails; squash the workplan into the parent branch, with the message from its template; `--show` prints the message |
+| [`publish [ID]`](PROTOCOL.md#wp-publish) | push the parent branch to the remote, then delete the workplan's branches there; stops, deleting nothing, if the push is refused |
 | [`task add TITLE [--depend N] [-m CHANGE]`](PROTOCOL.md#wp-task-add) | the next task's TASK.md and BREAKDOWN.md from their templates, and its line in WORKPLAN.md; the editor opens on TASK.md; commit |
 | `task add --reply FILE` | the new tasks in a `task gen` reply from a chat; `-` reads standard input; commit |
 | [`task gen [ID] [--prompt]`](PROTOCOL.md#wp-task-gen) | the agent writes each new task's TASK.md and BREAKDOWN.md; they are listed in WORKPLAN.md and committed with it; `--prompt` prints the prompt for a chat |
@@ -231,6 +235,7 @@ environment only.
 | Key | Variable | Default |
 |---|---|---|
 | `parent` | `WORKPLAN_PARENT` | `master`; `init` writes the branch checked out |
+| `remote` | `WORKPLAN_REMOTE` | `origin` |
 | `llm.api_base` | `WORKPLAN_API_BASE` | `http://localhost:8000/v1` |
 | `llm.api_key_env` | | `WORKPLAN_API_KEY` |
 | `llm.params` | | `{}`, added to each request body |

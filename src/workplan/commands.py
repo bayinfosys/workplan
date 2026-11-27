@@ -212,6 +212,15 @@ def cmd_merge_workplan(ctx, *, workplan: WORKPLAN = None,
                      on_test=running if ctx.interactive else None)
 
 
+@registry.command(help="push the parent branch, then delete the workplan's branches on the "
+                       "remote",
+                  render=lambda r: lines([f"pushed {r['pushed']}"]
+                                         + [f"deleted {b}" for b in r["deleted"]]),
+                  protocol=True)
+def cmd_publish_workplan(ctx, *, workplan: WORKPLAN = None):
+    return ops.publish(workplan, ctx.master, ctx.cfg["remote"])
+
+
 # ---------------------------------------------------------------------------
 # task
 

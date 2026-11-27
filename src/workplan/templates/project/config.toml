@@ -2,6 +2,7 @@
 # (see the workplan README); API keys come from the environment only.
 
 parent = "master"      # the branch workplans start from and merge into
+remote = "origin"      # the remote publish pushes to
 
 [llm]
 # Any OpenAI-compatible endpoint; requests go to <api_base>/chat/completions.

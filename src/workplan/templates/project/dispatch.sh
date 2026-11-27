@@ -13,4 +13,6 @@ for task in json.load(sys.stdin)["tasks"]:
     if task["state"] == "stale":
         print(task["id"])' |
     while read -r task; do workplan patch gen "$task" & done; wait ;;
+# complete)
+#     workplan publish "$@" ;;    # pushes to the remote after each merge
 esac

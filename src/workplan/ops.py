@@ -534,8 +534,37 @@ def merge(arg: str | None, master: str, edit: bool = True, message: str | None =
         "workplan": wid,
         "commit": git.run("log", "-1", "--format=%h %s"),
         "tested": test_command or None,
-        "next": [f"git push origin {master}", f"git push origin --delete {branch}"],
+        "next": ["workplan publish"],
     }
+
+
+def publish(arg: str | None, parent: str, remote: str) -> dict:
+    """Push the parent branch, then delete the workplan's branches on the
+    remote, in that order. When the push fails, nothing is deleted."""
+    if git.branch() != parent:
+        raise Fail(f"publish runs with {parent} checked out")
+    if arg is None:
+        path = git.run("log", "-1", "--format=%(trailers:key=Workplan,valueonly)", "HEAD")
+        if not path:
+            raise Fail(f"HEAD has no Workplan trailer; name the workplan to publish")
+        arg = Path(path.splitlines()[0]).parent.name
+    wid = arg
+    if not plans.ID.fullmatch(wid):
+        raise Fail(f"{wid} is not a workplan id")
+    trailer = f"Workplan: {plans.ROOT}/{wid}/WORKPLAN.md"
+    if not git.run("log", parent, "-F", f"--grep={trailer}", "--format=%h", "-n", "1"):
+        raise Fail(f"{wid} is not merged into {parent}; run workplan merge first")
+    branch = f"workplan/{wid}/definition"
+    if git.ref_exists(f"refs/heads/{branch}"):
+        raise Fail(f"{branch} still exists here; run workplan merge first")
+    if not git.ok("remote", "get-url", remote):
+        raise Fail(f"no remote {remote}")
+    git.run("push", "-q", remote, parent)
+    heads = git.run("ls-remote", "--heads", remote, f"refs/heads/workplan/{wid}/*")
+    deleted = [line.split("refs/heads/", 1)[1] for line in heads.splitlines() if line]
+    if deleted:
+        git.run("push", "-q", remote, "--delete", *deleted)
+    return {"workplan": wid, "pushed": f"{parent} to {remote}", "deleted": deleted}
 
 
 def run_tests(command: str, branch: str) -> None:

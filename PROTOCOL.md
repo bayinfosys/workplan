@@ -233,7 +233,8 @@ Text in angle brackets in a template is for the author to replace.
    commit it with COMMIT_MSG, together with the task's directory and
    WORKPLAN.md; push.
 4. Review the workplan as a whole (section 10).
-5. Squash-merge to the parent branch (section 9).
+5. Squash-merge to the parent branch (section 9), then publish: push
+   the parent branch and delete the workplan's branches on the remote.
 
 The maintainer authors every commit, through the commands or by hand;
 agents write files and do not commit.
@@ -376,6 +377,8 @@ git log -p --reverse $parent..workplan/2026-11-24-one-package/definition   # tas
 - Tasks whose files do not overlap may run in parallel on task
   branches; tasks that share files run in sequence.
 - Pushing a task branch claims the task. The first push stands.
+- After the merge, `wp publish` pushes the parent branch, then deletes
+  the workplan's branches on the remote.
 - Suggested settings: `git config pull.rebase true`,
   `git config rebase.autoStash true`, `git config fetch.prune true`.
 
@@ -395,6 +398,7 @@ n=0003                                            # task number
 t=workplans/$w/$n                                 # task directory
 b=workplan/$w/definition                          # workplan branch
 parent=master                                     # parent branch: master, main, ...
+remote=origin                                     # the remote publish pushes to
 T=<templates>/documents                           # document templates
 ```
 
@@ -440,8 +444,7 @@ git commit     -m "$w edit WORKPLAN.md" -- workplans/$w/WORKPLAN.md
 
 Squash the workplan into the parent branch once every listed task is
 committed or dropped, the branch contains the parent and the tests
-pass (section 9).
-Pushing is the maintainer's.
+pass (section 9). Nothing is pushed; `wp publish` does that.
 
 ```bash
 git merge-base --is-ancestor $parent $b           # else rebase $b onto $parent
@@ -456,6 +459,20 @@ git switch     $parent
 git merge      --squash $b
 git commit     -e -F /tmp/msg                     # on failure: reset --merge, switch $b
 git branch     -D $b
+```
+
+## wp publish
+
+Push the parent branch, then delete the workplan's branches on the
+remote. This is the only command which pushes to a pre-existing remote
+branch. It may fail: when the remote's parent branch has moved on, the
+push is refused, and nothing is deleted.
+
+```bash
+# with $parent checked out, the merge on it, and $b deleted
+git push       $remote $parent                    # stop here if refused
+git ls-remote  --heads $remote "refs/heads/workplan/$w/*"
+git push       $remote --delete workplan/$w/definition   # and each workplan/$w/task/*
 ```
 
 ## wp task add
