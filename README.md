@@ -22,6 +22,14 @@ accepts or rejects it.
 - **A protocol, not a service.** No server, no account, any agent or
   none; [PROTOCOL.md](PROTOCOL.md) is enough to implement it again.
 
+Every step can be done by hand; PROTOCOL.md gives each as git commands.
+Most steps are several git operations in a fixed order: `patch accept`
+applies the patch, checks COMMIT_MSG and commits it with the task's
+files; `merge` runs the tests, squashes, commits and deletes the
+branch. The library ensures that order, checks what a step needs
+before it starts, and restores the tree when a step fails. It reads
+and changes the repository through git commands only.
+
 ## Install
 
 ```bash
@@ -31,68 +39,16 @@ pipx install workplan
 Python 3.11 or later and git. No other dependencies. It runs on
 Linux; the hooks and dispatch.sh need a POSIX shell.
 
-## Try it on this repository
-
-This repository is planned with workplan: every change since v0.1.0
-is a workplan in `workplans/`, merged as one squash commit.
-
-```bash
-git clone https://github.com/bayinfosys/workplan
-cd workplan
-pipx install workplan
-wp list                            # the workplans, and where they are held
-wp show 2026-11-26-change-kinds    # a workplan's goal and its tasks' states
-wp changelog v0.1.0                # what changed since v0.1.0, from git alone
-wp serve                           # the board, in a local web page
-```
-
 `wp` is installed as a short name for `workplan`. WP-CLI, the WordPress
 command line, also installs `wp`; where both are installed, use
 `workplan`.
 
-## Manual, semi-automatic, full auto
+## Getting started
 
-Run it on full auto for the real vibe coding experience, or manual for the good old days.
+[GETTING_STARTED.md](GETTING_STARTED.md): trying it on this repository,
+a first workplan without an agent, then with one.
 
-- **Manual:** git and an editor. [PROTOCOL.md](PROTOCOL.md) gives every step as git commands; the `workplan` command is optional.
-- **Semi-automatic:** run each command; Agents define tasks and produce patches; you read the diffs and accept or reject.
-- **Full auto:** `workplan install` adds hooks that route each commit
-  to its next step, and `route.dispatch` runs `task gen` and
-  `patch gen` as soon as they are due. Accepting each patch and
-  merging stay with you.
-
-Every step can be done by hand; PROTOCOL.md gives each as git commands.
-Most steps are several git operations in a fixed order: `patch accept`
-applies the patch, checks COMMIT_MSG and commits it with the task's
-files; `merge` runs the tests, squashes, commits and deletes the
-branch. The library ensures that order, checks what a step needs
-before it starts, and restores the tree when a step fails. It reads
-and changes the repository through git commands only.
-
-## A workplan from start to finish
-
-```bash
-workplan init                      # create workplans/ and commit it
-$EDITOR workplans/BACKLOG.md       # the work not yet started: one ## heading per item
-workplan new greeting              # branch workplan/<date>-greeting/definition;
-                                   # the editor opens on WORKPLAN.md: goal, context, findings;
-                                   # it is committed
-workplan task gen                  # the agent writes the tasks; WORKPLAN.md and the
-                                   # tasks are committed
-git push                           # share the plan
-
-workplan patch gen 0000            # the agent writes output.patch and COMMIT_MSG
-workplan patch apply 0000          # stage it
-workplan patch show 0000           # the task, its commit, its dependencies and the diff:
-                                   # read it, test it
-workplan patch accept 0000         # commit it with the task's files; or: patch reject
-workplan status
-
-workplan merge                     # squash into the parent branch; the editor opens on the message;
-                                   # the local definition branch is deleted
-workplan publish                   # push the parent branch; delete the workplan's
-                                   # branches on the remote
-```
+## Commands
 
 The commands that complete a step or change a document commit it:
 `init`, `new`, `edit`, `task add`, `task gen`, `task edit`,
@@ -126,8 +82,6 @@ branch and with nothing else that is staged: `new` as `<id> workplan`,
 
 Every command also runs as `wp`: `wp new greeting`, `wp task add`,
 `wp patch show 0000`.
-
-## Commands
 
 Protocol commands change the repository in the protocol's terms; each
 links to its git commands in PROTOCOL.md.

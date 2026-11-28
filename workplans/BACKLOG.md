@@ -88,14 +88,17 @@ its context and the agent's reply to workplans/logs/, for debugging.
   reserved names in plans.py
 - whether the logs are ignored by git
 
-## Page polish
+## Review page
 
-- click a rendered document to edit it in place: a flat text box with
-  Save and Cancel
-- mark a task's uncommitted document changes on its card and its tabs,
-  worked out from git, as the states are
-- the task panel's actions in `development`: seven buttons in one row
-- the open panel covers the header's buttons
+The page reads left to right, in the order work is created: the
+workplan, its tasks, a task's patch.
+
+- WORKPLAN.md on the left, rendered, edited in place
+- the tasks as cards beside it, two per screen, scrolling: title,
+  state, effects, trailers; uncommitted changes marked
+- a card opens its patch on the right: the diff, the files changed, and
+  Accept, Reject and Drop beside it
+- the board becomes a secondary view, or goes
 
 ## Workplan order
 
@@ -109,11 +112,6 @@ and the page could list workplans in that order.
 Try the claude-code and codex presets on a real repository, and the
 none agent against marigold and a hosted endpoint. Record what each
 needs in README.md.
-
-## Review agent
-
-An agent step for the `review` action: what it reads, and where its
-notes go.
 
 ## Internal agent
 

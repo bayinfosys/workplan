@@ -28,3 +28,12 @@ Every task and every review holds to these.
   task leaves it passing, and tasks may add to it
 - a change a task needs outside its scope is raised for a later
   workplan
+
+## Code
+
+- comment only what the code cannot say
+- no docstring that restates the name
+- no check for a case that cannot happen
+- no helper used once
+- short, plain names
+- comments and messages in British English, in full sentences
